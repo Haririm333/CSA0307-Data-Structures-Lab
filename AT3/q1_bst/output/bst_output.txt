@@ -1,0 +1,124 @@
+=================================================================
+   QUESTION 1: BINARY SEARCH TREE (LIBRARY CATALOGUE BENCHMARK)   
+=================================================================
+
+--- PART A: THREE CASES OF DELETION ---
+Initial tree built with {50, 30, 70, 20, 40, 60, 80, 65}:
+
+            [80]
+
+      [70]
+
+                  [65]
+
+            [60]
+
+[50]
+
+            [40]
+
+      [30]
+
+            [20]
+----------------------------------------
+Graphviz DOT exported to q1_bst/output/tree_initial.dot
+
+Traversals of Initial Tree:
+Preorder:   50 30 20 40 70 60 65 80 
+Inorder:    20 30 40 50 60 65 70 80 
+Postorder:  20 40 30 65 60 80 70 50 
+Level-order:50 30 70 20 40 60 80 65 
+Height:     3 (empty=-1, leaf=0)
+
+>> Deleting Key 20 [CASE 1: Leaf Node (0 children)]:
+
+            [80]
+
+      [70]
+
+                  [65]
+
+            [60]
+
+[50]
+
+            [40]
+
+      [30]
+----------------------------------------
+>> Deleting Key 30 [CASE 2: One Child (right child 40)]:
+
+            [80]
+
+      [70]
+
+                  [65]
+
+            [60]
+
+[50]
+
+      [40]
+----------------------------------------
+>> Deleting Key 50 [CASE 3: Two Children (inorder successor is 60)]:
+
+            [80]
+
+      [70]
+
+            [65]
+
+[60]
+
+      [40]
+----------------------------------------
+Graphviz DOT exported to q1_bst/output/tree_after_deletions.dot
+Preorder after deletions: 60 40 70 65 80 
+Inorder after deletions:  40 60 65 70 80 
+
+--- PART B: FILE PERSISTENCE VIA PREORDER SERIALIZATION ---
+Successfully saved tree to 'q1_bst/output/bst_saved.txt' in preorder.
+Rebuilt tree from file:
+
+            [80]
+
+      [70]
+
+            [65]
+
+[60]
+
+      [40]
+----------------------------------------
+Inorder of rebuilt tree: 40 60 65 70 80 
+Heights: original = 2, rebuilt = 2 (identical structure verified!)
+
+--- PART C: EDGE CASES ---
+Empty Tree:
+  Height: -1 (expected -1)
+  Search 100: Not Found (comparisons=0)
+  Preorder: (none)
+  Delete from empty: Handled safely (NULL)
+
+Duplicate Keys Test:
+  Inserted 100 three times. Inorder: 100 
+  Height: 0 (expected 0, single node)
+
+--- PART D: EMPIRICAL BENCHMARK (2,000 KEYS: RANDOM VS SORTED) ---
++-----------------------------------+-------------------+-------------------+
+| Metric (N = 2,000 keys)           | Random Order BST  | Sorted Order BST  |
++-----------------------------------+-------------------+-------------------+
+| Tree Height                       | 26                | 1999              |
+| Insert Time (ms)                  | 0.261             | 18.153            |
+| Total Search Comparisons (2,000)  | 28359             | 2001000           |
+| Avg Comparisons per Search        | 14.18             | 1000.50           |
+| Total Search Time (ms)            | 0.128             | 3.680             |
++-----------------------------------+-------------------+-------------------+
+
+Analysis of Benchmark:
+1. Random Order: Height = 26 (approx 1.39 * log2(2000) ~ 15), avg comparisons = 14.18.
+2. Sorted Order: Height = 1999 (N - 1 = 1999 degenerate chain), avg comparisons = 1000.50 (~ N/2 = 1000.5).
+3. The sorted order causes searching to degrade from O(log N) to linear O(N), proving why
+   self-balancing trees (AVL / Red-Black) are mandatory for ordered insertions.
+
+All memory successfully freed. Zero memory leaks.

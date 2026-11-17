@@ -1,0 +1,12 @@
+# Binaries and object files
+*.exe
+*.o
+*.obj
+*.out
+*.app
+
+# Temporary and editor files
+.vscode/
+.idea/
+*.swp
+*.tmp

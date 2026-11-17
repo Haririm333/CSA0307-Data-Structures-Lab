@@ -1,0 +1,7 @@
+digraph AVL {
+    node [shape=circle, fontname="Helvetica"];
+    "20" -> "10" [label="L"];
+    "20" -> "40" [label="R"];
+    "40" -> "30" [label="L"];
+    "40" -> "50" [label="R"];
+}

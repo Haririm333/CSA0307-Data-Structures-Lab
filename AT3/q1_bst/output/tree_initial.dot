@@ -1,0 +1,14 @@
+digraph BST {
+    node [fontname="Helvetica", shape=circle];
+    "50" -> "30" [label="L"];
+    "30" -> "20" [label="L"];
+    "20" [shape=ellipse];
+    "30" -> "40" [label="R"];
+    "40" [shape=ellipse];
+    "50" -> "70" [label="R"];
+    "70" -> "60" [label="L"];
+    "60" -> "65" [label="R"];
+    "65" [shape=ellipse];
+    "70" -> "80" [label="R"];
+    "80" [shape=ellipse];
+}
