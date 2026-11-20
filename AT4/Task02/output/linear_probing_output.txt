@@ -1,0 +1,23 @@
+=== Linear Probing Demonstration (M = 11) ===
+Inserted CSE1043 (Kavya) with 1 probe(s)
+Inserted ECE2210 (Arjun) with 1 probe(s)
+Inserted MEC3307 (Fathima) with 2 probe(s)
+Inserted CSE1044 (Rahul) with 2 probe(s)
+Inserted BME4120 (Deepa) with 1 probe(s)
+Inserted CIV5009 (Manoj) with 2 probe(s)
+
+Table Slots:
+Slot  0: [EMPTY]
+Slot  1: [ECE2210 : Arjun]
+Slot  2: [EMPTY]
+Slot  3: [EMPTY]
+Slot  4: [EMPTY]
+Slot  5: [EMPTY]
+Slot  6: [BME4120 : Deepa]
+Slot  7: [CSE1043 : Kavya]
+Slot  8: [MEC3307 : Fathima]
+Slot  9: [CSE1044 : Rahul]
+Slot 10: [CIV5009 : Manoj]
+
+Lookup 'CSE1044': Rahul (2 probes)
+Lookup 'CSE9999': not found (4 probes)

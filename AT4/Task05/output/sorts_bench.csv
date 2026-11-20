@@ -1,0 +1,55 @@
+Algorithm,Order,N,TimeMs,Comparisons,Stability,ExtraSpace,Status
+"Bubble Sort",Random,1000,0.86,499269,Stable,O(1),Measured
+"Insertion Sort",Random,1000,0.15,246970,Stable,O(1),Measured
+"Selection Sort",Random,1000,1.55,499500,Unstable,O(1),Measured
+"Merge Sort",Random,1000,0.08,8711,Stable,O(n),Measured
+"Quick Sort(M3)",Random,1000,0.05,10054,Unstable,O(log n),Measured
+"Heap Sort",Random,1000,0.04,16857,Unstable,O(1),Measured
+"Bubble Sort",Sorted,1000,0.00,999,Stable,O(1),Measured
+"Insertion Sort",Sorted,1000,0.00,999,Stable,O(1),Measured
+"Selection Sort",Sorted,1000,1.30,499500,Unstable,O(1),Measured
+"Merge Sort",Sorted,1000,0.02,5044,Stable,O(n),Measured
+"Quick Sort(M3)",Sorted,1000,0.01,7879,Unstable,O(log n),Measured
+"Heap Sort",Sorted,1000,0.03,17583,Unstable,O(1),Measured
+"Bubble Sort",Reverse,1000,0.28,499500,Stable,O(1),Measured
+"Insertion Sort",Reverse,1000,0.22,499500,Stable,O(1),Measured
+"Selection Sort",Reverse,1000,1.58,499500,Unstable,O(1),Measured
+"Merge Sort",Reverse,1000,0.03,4932,Stable,O(n),Measured
+"Quick Sort(M3)",Reverse,1000,0.02,12540,Unstable,O(log n),Measured
+"Heap Sort",Reverse,1000,0.06,15965,Unstable,O(1),Measured
+"Bubble Sort",Random,100000,24678.84,4999889969,Stable,O(1),Measured
+"Insertion Sort",Random,100000,2884.09,2506136703,Stable,O(1),Measured
+"Selection Sort",Random,100000,18509.96,4999950000,Unstable,O(1),Measured
+"Merge Sort",Random,100000,16.63,1536581,Stable,O(n),Measured
+"Quick Sort(M3)",Random,100000,10.34,1726886,Unstable,O(log n),Measured
+"Heap Sort",Random,100000,12.00,3019185,Unstable,O(1),Measured
+"Bubble Sort",Sorted,100000,0.10,99999,Stable,O(1),Measured
+"Insertion Sort",Sorted,100000,0.19,99999,Stable,O(1),Measured
+"Selection Sort",Sorted,100000,18603.97,4999950000,Unstable,O(1),Measured
+"Merge Sort",Sorted,100000,3.74,853904,Stable,O(n),Measured
+"Quick Sort(M3)",Sorted,100000,1.72,1483630,Unstable,O(log n),Measured
+"Heap Sort",Sorted,100000,10.71,3112517,Unstable,O(1),Measured
+"Bubble Sort",Reverse,100000,4221.78,4999950000,Stable,O(1),Measured
+"Insertion Sort",Reverse,100000,2456.97,4999950000,Stable,O(1),Measured
+"Selection Sort",Reverse,100000,18637.65,4999950000,Unstable,O(1),Measured
+"Merge Sort",Reverse,100000,4.21,815024,Stable,O(n),Measured
+"Quick Sort(M3)",Reverse,100000,2.71,2494021,Unstable,O(log n),Measured
+"Heap Sort",Reverse,100000,8.98,2926640,Unstable,O(1),Measured
+"Bubble Sort",Random,1000000,2467883.74,499988996900,Stable,O(1),skipped (est.)
+"Insertion Sort",Random,1000000,288409.33,250613670300,Stable,O(1),skipped (est.)
+"Selection Sort",Random,1000000,1850996.43,499995000000,Unstable,O(1),skipped (est.)
+"Merge Sort",Random,1000000,188.10,18674692,Stable,O(n),Measured
+"Quick Sort(M3)",Random,1000000,117.20,20551690,Unstable,O(log n),Measured
+"Heap Sort",Random,1000000,235.54,36793151,Unstable,O(1),Measured
+"Bubble Sort",Sorted,1000000,9.87,9999900,Stable,O(1),skipped (est.)
+"Insertion Sort",Sorted,1000000,4.35,999999,Stable,O(1),Measured
+"Selection Sort",Sorted,1000000,1860396.75,499995000000,Unstable,O(1),skipped (est.)
+"Merge Sort",Sorted,1000000,53.28,10066432,Stable,O(n),Measured
+"Quick Sort(M3)",Sorted,1000000,22.63,17868945,Unstable,O(log n),Measured
+"Heap Sort",Sorted,1000000,126.81,37692069,Unstable,O(1),Measured
+"Bubble Sort",Reverse,1000000,422178.43,499995000000,Stable,O(1),skipped (est.)
+"Insertion Sort",Reverse,1000000,245696.74,499995000000,Stable,O(1),skipped (est.)
+"Selection Sort",Reverse,1000000,1863765.14,499995000000,Unstable,O(1),skipped (est.)
+"Merge Sort",Reverse,1000000,50.68,9884992,Stable,O(n),Measured
+"Quick Sort(M3)",Reverse,1000000,35.26,32345379,Unstable,O(log n),Measured
+"Heap Sort",Reverse,1000000,128.75,36001436,Unstable,O(1),Measured

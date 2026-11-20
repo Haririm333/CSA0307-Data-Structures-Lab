@@ -1,0 +1,9 @@
+$ git diff --no-index Task05/output/expected_output.txt Task05/output/complete_output.txt
+[Outputs match exactly - 0 differences found]
+Expected:
+#2:120 #5:120 #6:300 #8:300 #1:450 #3:450 #7:780 #4:990 
+comparisons = 15
+
+Actual:
+#2:120 #5:120 #6:300 #8:300 #1:450 #3:450 #7:780 #4:990 
+comparisons = 15

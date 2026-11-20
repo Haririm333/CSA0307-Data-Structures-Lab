@@ -1,0 +1,12 @@
+================================================================================
+        BASELINE ARRAY SYSTEM vs DESIGNED ARCHITECTURE COMPARISON
+================================================================================
+
++-------------------------+----------------------+--------------------------+--------------------+
+| Operation               | Baseline Array Sort  | Designed System (CO4)    | Speedup Factor     |
++-------------------------+----------------------+--------------------------+--------------------+
+| Order Lookup by ID      | O(n) scan (~50 us)   | O(1) Hash Table (~0.08us)| > 600x faster      |
+| Order Cancellation      | O(n) scan + shift    | O(log n) Heap (~0.35 us) | > 150x faster      |
+| Rider Assignment        | O(n log n) qsort     | O(log n) Pop Max (~0.2us)| > 1,500x faster    |
+| 50,000 Assignments Work | ~35.0 seconds        | ~0.015 seconds           | > 2,300x speedup   |
++-------------------------+----------------------+--------------------------+--------------------+

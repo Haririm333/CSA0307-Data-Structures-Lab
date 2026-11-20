@@ -1,0 +1,81 @@
+================================================================================
+TASK 5: SORTING ALGORITHMS AND PARALLEL SORTING - EVALUATION & REPORT
+================================================================================
+
+Task 5.1 - Sorting Algorithm Comprehensive Comparison:
+------------------------------------------------------
+Summary Table (Characteristics across N = 1,000, 100,000, 1,000,000):
+
++-----------------+------------+-------------+---------------------+---------------------+-----------------------+
+| Algorithm       | Stability  | Extra Space | Best Case           | Average Case        | Worst Case            |
++-----------------+------------+-------------+---------------------+---------------------+-----------------------+
+| Bubble Sort     | Stable     | O(1)        | O(n) (sorted)       | O(n^2)              | O(n^2) (reverse)      |
+| Insertion Sort  | Stable     | O(1)        | O(n) (sorted)       | O(n^2)              | O(n^2) (reverse)      |
+| Selection Sort  | Unstable   | O(1)        | O(n^2)              | O(n^2)              | O(n^2)                |
+| Merge Sort      | Stable     | O(n)        | O(n log n)          | O(n log n)          | O(n log n)            |
+| Quick Sort (M3) | Unstable   | O(log n)    | O(n log n)          | O(n log n)          | O(n log n) (M3 pivot) |
+| Heap Sort       | Unstable   | O(1)        | O(n log n)          | O(n log n)          | O(n log n)            |
++-----------------+------------+-------------+---------------------+---------------------+-----------------------+
+
+Extrapolation for O(n^2) algorithms at N = 1,000,000:
+For Bubble Sort, Selection Sort, and Insertion Sort (on random and reverse data), running N = 1,000,000
+takes (1,000,000 / 100,000)^2 = 100x the work of N = 100,000.
+Because N=100,000 takes ~5-15 seconds, N=1,000,000 takes ~500 to 1,500 seconds (8 to 25 minutes).
+Hence, these values are designated "skipped (est.)" in `Task05/output/sorts_bench.csv`.
+Notice: Insertion Sort on already-sorted input is O(n), running in ~2 ms even at N = 1,000,000!
+
+Task 5.2 & 5.3 - Parallel Merge Sort & Speed-up Explanation:
+-------------------------------------------------------------
+Parallel Architecture:
+- OpenMP task-based merge sort (#pragma omp task).
+- Subarrays below CUTOFF (65,536 elements) are sorted sequentially to prevent fine-grained thread spawning overhead.
+- A single temporary buffer of size N is shared among threads to avoid dynamic malloc inside recursive calls.
+- Benchmark: N = 10,000,000 items, measured across 5 runs each for 1, 2, 4, 8 threads.
+
+Why Speed-Up is Less Than p (Number of Threads) - 3 Key Factors:
+1. Sequential Final Merge Bottleneck (Amdahl's Law):
+   While the left and right halves are sorted in parallel by p threads, the final merge step merging the two
+   5,000,000-element halves into the final array is fundamentally sequential (O(N) operations executed on 1 thread).
+   This sequential tail fraction limits the theoretical maximum speedup according to Amdahl's Law.
+2. Memory Bandwidth Saturation:
+   Merge sort is memory-intensive: each pass reads and writes the entire array into the temporary buffer.
+   When 4 or 8 cores simultaneously stream data to/from RAM, the system memory bus becomes saturated,
+   causing memory bus stalls that throttle linear scaling.
+3. Thread Creation, Synchronization, and Cache Coherency:
+   Spawning OpenMP tasks and synchronizing at `#pragma omp taskwait` incurs scheduling and context-switching overhead.
+   Furthermore, cache lines bounce between CPU L1/L2 caches when threads access neighboring regions of memory.
+
+When Parallel Sorting is Worth It:
+Parallel sorting is justified when:
+- N is large (N >= 500,000 to 1,000,000) so that computation time far outweighs thread management overhead.
+- Data fits comfortably in high-bandwidth memory.
+- For small arrays (N < 100,000), sequential sort is faster due to zero coordination overhead.
+
+Heap Sort vs Merge Sort at N = 1,000,000:
+-----------------------------------------
+- Time: Merge sort is consistently faster in wall-clock time due to sequential memory access patterns that
+  exploit hardware CPU prefetching and cache lines. Heap sort performs non-contiguous jumps (i -> 2i+1),
+  causing frequent CPU L2/L3 cache misses.
+- Space: Heap sort requires O(1) auxiliary space (in-place), while Merge sort requires O(n) extra space
+  (4 MB extra for 1M integers, or ~40 MB for 10M).
+- Stability: Merge sort is strictly STABLE; Heap sort is inherently UNSTABLE.
+- Parallelizability: Merge sort divides naturally into independent recursive halves (embarrassingly parallel);
+  Heap sort is notoriously difficult to parallelize because sift-down dependencies restrict concurrency.
+
+Complete the Code Verification (Task05/src/complete.c):
+-------------------------------------------------------
+Expected Output:
+#2:120 #5:120 #6:300 #8:300 #1:450 #3:450 #7:780 #4:990 
+comparisons = 15
+
+Actual Output:
+#2:120 #5:120 #6:300 #8:300 #1:450 #3:450 #7:780 #4:990 
+comparisons = 15
+Diff: 0 differences (100% exact match).
+
+Preservation of Order:
+Orders #2 (Rs 120) and #5 (Rs 120) were originally at indices 1 and 4.
+Because '<=' was used in merge(): when a[i].amount == a[j].amount, the item from the left half
+(a[i] = #2) is taken first into tmp, followed by the item from the right half (a[j] = #5).
+If strictly '<' were used instead (tested in `Task05/src/complete_unstable.c`), the tie condition falls
+into the else-clause, taking a[j] (#5) BEFORE a[i] (#2), resulting in `#5:120 #2:120` (inverting relative order!).

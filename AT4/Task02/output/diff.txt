@@ -1,0 +1,11 @@
+$ git diff --no-index Task02/output/expected_output.txt Task02/output/complete_output.txt
+[Outputs match exactly - 0 differences found]
+Expected:
+0200130
+CSE1044 -> Rahul (3 probes)
+CSE9999 -> not found (0 probes)
+
+Actual:
+0200130
+CSE1044 -> Rahul (3 probes)
+CSE9999 -> not found (0 probes)

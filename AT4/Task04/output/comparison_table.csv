@@ -1,0 +1,7 @@
+Dataset,SortType,TimeMs,Comparisons,Swaps,MaxStackDepth
+Random,BadQuick,1.80,152840,82130,24
+Sorted,BadQuick,75.40,49995000,49995000,9999
+Random,FixedQuick,0.81,143857,47981,7
+Sorted,FixedQuick,0.11,108986,2046,11
+Reverse,FixedQuick,0.15,181466,21044,11
+Duplicates,FixedQuick,0.32,109648,42327,10

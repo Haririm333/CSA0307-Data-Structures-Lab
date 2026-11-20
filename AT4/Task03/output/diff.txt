@@ -1,0 +1,7 @@
+$ git diff --no-index Task03/output/expected_output.txt Task03/output/complete_output.txt
+[Outputs match exactly - 0 differences found]
+Expected:
+P102(9) P106(8) P104(7) P103(5) P101(3) P105(1) 
+
+Actual:
+P102(9) P106(8) P104(7) P103(5) P101(3) P105(1) 

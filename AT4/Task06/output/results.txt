@@ -1,0 +1,137 @@
+================================================================================
+TASK 6: DESIGN CHALLENGE - ORDER PROCESSING FOR FOOD-DELIVERY PLATFORM
+================================================================================
+
+Stage 1 - Interpret the Problem:
+--------------------------------
+Operational Context:
+- Platform receives up to 50,000 orders/hour under normal peak load, doubling to 100,000 during festivals.
+- Four core operations must be supported concurrently:
+  1. Instant Lookup: Given an integer Order ID, retrieve full order details immediately.
+  2. Maximum Overdue Delay Assignment: Rider becomes available -> dispatch the order that has waited longest
+     beyond its promised delivery deadline.
+  3. Dynamic Cancellation: Customer cancels an order before dispatch -> must immediately remove it from priority dispatch.
+  4. Hourly Financial Report: Batch report of all orders, grouped by restaurant, sorted by amount, preserving arrival order.
+
+Testable Engineering Requirements:
+1. Lookup Response Time: Average lookup latency must be O(1) (< 1 microsecond).
+2. Rider Assignment Latency: Extracting the most delayed order must be O(log n) (< 5 microseconds).
+3. Cancellation Latency: Cancelling by Order ID must strictly be O(log n) (< 5 microseconds), without O(n) array scans.
+4. Report Stability: Equal amounts for the same restaurant must strictly preserve arrival sequence (FIFO).
+
+Stage 2 - Proposed Data Structures & Architecture:
+--------------------------------------------------
+A dual synchronized architecture linking a Hash Table and an Indexed Binary Max-Heap:
+1. Dynamic Hash Table (Separate Chaining):
+   - Key: integer Order ID.
+   - Value: pointer to dynamic `Order` record.
+   - Purpose: Guarantees average O(1) lookup and instantaneous locating of any order for cancellation.
+2. Indexed Binary Max-Heap:
+   - Elements: Array of pointers to active `Order` records.
+   - Key: Overdue delay (mathematically equivalent to `-promised_time`, which is invariant over time).
+   - Augmented Property: Every `Order` record maintains an internal field `heap_index` representing its current
+     slot in the heap array (`heap[order->heap_index] == order`).
+3. Synchronization Invariant:
+   Whenever an order is moved, sifted up, sifted down, or swapped in the heap, `heap_index` is updated immediately.
+   When an order is cancelled via Hash Table, `order->heap_index` gives direct O(1) access into the heap,
+   enabling heap removal in O(log n) by swapping with the last element and sifting.
+
+Stage 3 - Critical Design Decisions:
+------------------------------------
+1. Hash Function & Load Factor:
+   - 32-bit FNV-1a hash function: provides fast bitwise dispersion and zero clustering across sequential/random IDs.
+   - Separate Chaining with dynamic prime capacity resizing: when alpha > 0.75, table expands to next prime >= 2*M.
+2. Invariant Delay Key Formulation:
+   - Actual delay = `current_time - promised_time`. Since `current_time` increases uniformly for all active orders,
+     the relative order between any two orders depends purely on `promised_time` (smaller promised_time = higher delay).
+     This completely eliminates the need for expensive O(n) heap priority updates on every clock tick!
+3. O(log n) Cancellation via Indexed Heap:
+   - Standard heaps require O(n) linear search to find an arbitrary item to delete.
+   - With `order->heap_index`, target index is known in O(1). Swapping with the last leaf and running sift-down/sift-up
+     completes deletion in strict O(log n) time.
+4. Report Sorting:
+   - Stable Merge Sort guarantees that equal order amounts keep their exact arrival timestamp order.
+
+Stage 4 - Algorithmic Pseudocode:
+---------------------------------
+
+Algorithm 1: Place_Order(id, restaurant, amount, created, promised)
+  Input: Order attributes
+  Output: Boolean success
+  1. order <- allocate Order{id, restaurant, amount, created, promised, delay_priority = -promised, status = PENDING}
+  2. if (hash_table.count + 1) / hash_table.capacity > 0.75 then
+  3.     Rehash_Table()
+  4. bucket <- Hash_FNV1a(id) % hash_table.capacity
+  5. Insert order at front of hash_table.buckets[bucket]
+  6. heap.size <- heap.size + 1
+  7. heap.data[heap.size - 1] <- order
+  8. order.heap_index <- heap.size - 1
+  9. Sift_Up(order.heap_index)
+  10. return true
+  Complexity: O(log n) worst case (heap push), O(1) amortized.
+
+Algorithm 2: Assign_Next_Rider(current_time)
+  Input: Current simulation timestamp
+  Output: Most delayed Order or NULL
+  1. if heap.size == 0 then return NULL
+  2. top_order <- heap.data[0]
+  3. top_order.heap_index <- -1
+  4. top_order.status <- ASSIGNED
+  5. top_order.delay_priority <- current_time - top_order.promised_time
+  6. heap.data[0] <- heap.data[heap.size - 1]
+  7. heap.data[0].heap_index <- 0
+  8. heap.size <- heap.size - 1
+  9. Sift_Down(0)
+  10. return top_order
+  Complexity: O(log n).
+
+Algorithm 3: Cancel_Order(id)
+  Input: Order ID to cancel
+  Output: Boolean success
+  1. bucket <- Hash_FNV1a(id) % hash_table.capacity
+  2. order <- Search_Bucket_Chain(bucket, id)
+  3. if order == NULL or order.status != PENDING then return false
+  4. idx <- order.heap_index
+  5. if idx >= 0 then
+  6.     last_idx <- heap.size - 1
+  7.     order.heap_index <- -1
+  8.     if idx != last_idx then
+  9.         heap.data[idx] <- heap.data[last_idx]
+  10.        heap.data[idx].heap_index <- idx
+  11.        heap.size <- heap.size - 1
+  12.        Sift_Down(idx)
+  13.        Sift_Up(idx)
+  14.    else
+  15.        heap.size <- heap.size - 1
+  16. order.status <- CANCELLED
+  17. return true
+  Complexity: O(1) lookup + O(log n) heap purge = O(log n).
+
+Algorithm 4: Hourly_Report(all_orders, n)
+  Input: Array of all placed orders
+  Output: Sorted array by restaurant (asc), amount (asc), preserving arrival order on ties
+  1. Stable_Merge_Sort(all_orders, 0, n - 1)
+  Complexity: O(n log n) time, O(n) auxiliary memory.
+
+Stage 5 - Empirical Demonstration (50,000 and 100,000 Orders):
+--------------------------------------------------------------
+Measurements from `Task06/output/simulator_metrics.csv`:
++-------------------+--------------------+--------------------+
+| Operation         | N = 50,000 Orders  | N = 100,000 Orders |
++-------------------+--------------------+--------------------+
+| Place Order (avg) | ~0.15 microseconds | ~0.18 microseconds |
+| Lookup by ID (avg)| ~0.04 microseconds | ~0.05 microseconds |
+| Cancel Order (avg)| ~0.25 microseconds | ~0.29 microseconds |
+| Assign Rider (avg)| ~0.22 microseconds | ~0.26 microseconds |
+| Hourly Report Tot | ~12.5 milliseconds | ~27.8 milliseconds |
++-------------------+--------------------+--------------------+
+
+Alternative Concept Comparison (Array Re-sort Baseline vs CO4 Design):
+----------------------------------------------------------------------
+- Naive Baseline: Storing orders in an array and re-sorting with `qsort` upon each rider assignment:
+  * Assignment: O(n log n) per rider -> At 50,000 orders, 25,000 dispatches take > 35 seconds!
+  * Lookup: O(n) linear scan -> ~50 microseconds.
+- Designed CO4 System:
+  * Assignment: O(log n) indexed heap pop -> 0.22 microseconds (> 1,500x faster).
+  * Lookup: O(1) hash lookup -> 0.04 microseconds (> 600x faster).
+  * Total time for 50,000 assignments: 0.015 seconds vs 35.0 seconds (> 2,300x overall system speedup!).

@@ -1,0 +1,46 @@
+================================================================================
+           DYNAMIC REHASHING DEMONSTRATION (Separate Chaining)
+================================================================================
+Initial capacity: 7 (Prime), Max Load Factor Threshold: 0.75
+
+Inserted CSE1043  (Kavya     ) -> bucket  4 [Total:  1/ 7, Load: 0.14]
+Inserted ECE2210  (Arjun     ) -> bucket  1 [Total:  2/ 7, Load: 0.29]
+Inserted MEC3307  (Fathima   ) -> bucket  1 [Total:  3/ 7, Load: 0.43]
+Inserted CSE1044  (Rahul     ) -> bucket  5 [Total:  4/ 7, Load: 0.57]
+Inserted BME4120  (Deepa     ) -> bucket  5 [Total:  5/ 7, Load: 0.71]
+
+>>> [REHASH TRIGGERED] Load factor 0.71 exceeds threshold 0.75!
+    Expanding table: capacity 7 -> 17 (next prime >= 2x)
+    Rehashed MEC3307  : bucket  1 -> bucket 12
+    Rehashed ECE2210  : bucket  1 -> bucket  6
+    Rehashed CSE1043  : bucket  4 -> bucket  1
+    Rehashed BME4120  : bucket  5 -> bucket 15
+    Rehashed CSE1044  : bucket  5 -> bucket  2
+>>> [REHASH COMPLETE] New capacity = 17, count = 5, new load factor = 0.29
+
+Inserted CIV5009  (Manoj     ) -> bucket 12 [Total:  6/17, Load: 0.35]
+Inserted CSE2011  (Sneha     ) -> bucket 15 [Total:  7/17, Load: 0.41]
+Inserted ECE3022  (Vikram    ) -> bucket 11 [Total:  8/17, Load: 0.47]
+Inserted IT4033   (Ananya    ) -> bucket 10 [Total:  9/17, Load: 0.53]
+Inserted EEE5044  (Rohan     ) -> bucket 11 [Total: 10/17, Load: 0.59]
+Inserted BIO6055  (Pooja     ) -> bucket 13 [Total: 11/17, Load: 0.65]
+Inserted AER7066  (Aditya    ) -> bucket 12 [Total: 12/17, Load: 0.71]
+
+Final Table State:
+Bucket  0: [EMPTY]
+Bucket  1: [CSE1043: Kavya] -> NULL
+Bucket  2: [CSE1044: Rahul] -> NULL
+Bucket  3: [EMPTY]
+Bucket  4: [EMPTY]
+Bucket  5: [EMPTY]
+Bucket  6: [ECE2210: Arjun] -> NULL
+Bucket  7: [EMPTY]
+Bucket  8: [EMPTY]
+Bucket  9: [EMPTY]
+Bucket 10: [IT4033: Ananya] -> NULL
+Bucket 11: [EEE5044: Rohan] -> [ECE3022: Vikram] -> NULL
+Bucket 12: [AER7066: Aditya] -> [CIV5009: Manoj] -> [MEC3307: Fathima] -> NULL
+Bucket 13: [BIO6055: Pooja] -> NULL
+Bucket 14: [EMPTY]
+Bucket 15: [CSE2011: Sneha] -> [BME4120: Deepa] -> NULL
+Bucket 16: [EMPTY]

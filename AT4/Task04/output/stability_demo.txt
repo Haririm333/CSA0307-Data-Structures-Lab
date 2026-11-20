@@ -1,0 +1,20 @@
+================================================================================
+        STABILITY FORENSIC INVESTIGATION: EQUAL MARKS TIE RESOLUTION
+================================================================================
+
+Original Student Records      : [ #101(m:85) #102(m:92) #103(m:70) #104(m:85) #105(m:92) #106(m:60) #107(m:85) #108(m:92) ]
+Notice original order for marks 85: #101 -> #104 -> #107
+Notice original order for marks 92: #102 -> #105 -> #108
+
+1. Bad Quicksort Output       : [ #106(m:60) #103(m:70) #104(m:85) #101(m:85) #107(m:85) #102(m:92) #105(m:92) #108(m:92) ]
+2. Merge Sort Output (Stable) : [ #106(m:60) #103(m:70) #101(m:85) #104(m:85) #107(m:85) #102(m:92) #105(m:92) #108(m:92) ]
+3. Counting Sort Output (Stable): [ #106(m:60) #103(m:70) #101(m:85) #104(m:85) #107(m:85) #102(m:92) #105(m:92) #108(m:92) ]
+
+--------------------------------------------------------------------------------
+FORENSIC VERDICT:
+- Bad Quicksort swaps distant elements around pivot, scrambling relative student order.
+  Marks 85 students ended in scrambled order (e.g. #107 or #104 displaced).
+- Merge Sort with '<=' comparison guarantees that left-subarray elements precede right
+  elements on equal values, preserving exact arrival order: #101 -> #104 -> #107.
+- Counting Sort traversed from back to front placing elements at --count[m], maintaining
+  flawless FIFO stability: #101 -> #104 -> #107 and #102 -> #105 -> #108.

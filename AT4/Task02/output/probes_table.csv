@@ -1,0 +1,7 @@
+Alpha,Method,Theoretical_Succ,Empirical_Succ,Theoretical_Unsucc,Empirical_Unsucc
+0.50,Chaining,1.2500,1.2538,0.5000,0.5041
+0.50,LinearProbing,1.5000,1.5095,2.5000,2.5191
+0.75,Chaining,1.3750,1.3769,0.7500,0.7558
+0.75,LinearProbing,2.5000,2.4655,8.5000,8.0648
+0.90,Chaining,1.4500,1.4470,0.9000,0.8992
+0.90,LinearProbing,5.5000,5.4930,50.5000,48.9657

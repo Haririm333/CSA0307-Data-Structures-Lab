@@ -1,0 +1,19 @@
+================================================================================
+          HEAP ARRAY STATE AFTER EVERY INSERTION AND POP (MAX-HEAP)
+================================================================================
+
+--- INSERTION PHASE (Sift-Up) ---
+Inserted P101(sev 3)             -> Size 1: [ P101(3) ]
+Inserted P102(sev 9)             -> Size 2: [ P102(9) P101(3) ]
+Inserted P103(sev 5)             -> Size 3: [ P102(9) P101(3) P103(5) ]
+Inserted P104(sev 7)             -> Size 4: [ P102(9) P104(7) P103(5) P101(3) ]
+Inserted P105(sev 1)             -> Size 5: [ P102(9) P104(7) P103(5) P101(3) P105(1) ]
+Inserted P106(sev 8)             -> Size 6: [ P102(9) P104(7) P106(8) P101(3) P105(1) P103(5) ]
+
+--- REMOVAL PHASE (Sift-Down / Pop-Max) ---
+Popped top P102(sev 9)           -> Size 5: [ P106(8) P104(7) P103(5) P101(3) P105(1) ]
+Popped top P106(sev 8)           -> Size 4: [ P104(7) P101(3) P103(5) P105(1) ]
+Popped top P104(sev 7)           -> Size 3: [ P103(5) P101(3) P105(1) ]
+Popped top P103(sev 5)           -> Size 2: [ P101(3) P105(1) ]
+Popped top P101(sev 3)           -> Size 1: [ P105(1) ]
+Popped top P105(sev 1)           -> Size 0: [ ]

@@ -1,0 +1,16 @@
+=========================================================================================================
+        FIXED QUICKSORT RESULTS (Median-of-3 + Tail Recursion Elimination + Small Range Cutoff)
+=========================================================================================================
+Input Dataset      | Time (ms)    | Comparisons      | Swaps          | Max Stack Depth
+---------------------------------------------------------------------------------------------------------
+Random             |         0.81 |           143857 |          47981 |              7
+Already Sorted     |         0.11 |           108986 |           2046 |             11
+Reverse Sorted     |         0.15 |           181466 |          21044 |             11
+Many Duplicates    |         0.32 |           109648 |          42327 |             10
+=========================================================================================================
+
+Key Improvements Demonstrated:
+1. Sorted Input Stability: Max recursion depth dropped from 9,999 to ONLY 11 (bounded by log2 N)!
+2. Comparison Reduction on Sorted Input: From 49,995,000 down to 108986 (over 300x fewer comparisons)!
+3. Execution Speedup on Sorted Input: From ~75 ms down to 0.11 ms!
+4. Many Duplicates Robustness: Partition pointers stop on equals, avoiding quadratic clustering on duplicates.

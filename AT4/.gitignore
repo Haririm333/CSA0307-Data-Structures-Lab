@@ -1,0 +1,10 @@
+*.exe
+*.o
+*.obj
+*.pdb
+*.ilk
+*.a
+__pycache__/
+*.pyc
+Data_Structures_Assignment_4.pdf
+pdf_extracted_text.txt

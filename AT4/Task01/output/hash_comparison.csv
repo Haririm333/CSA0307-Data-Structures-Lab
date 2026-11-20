@@ -1,0 +1,6 @@
+Method,TableSize,TotalKeys,MaxChain,AvgChainAll,AvgChainNonEmpty,NonEmptyBuckets,EmptyBuckets,AvgHashTimeMs
+"Bad Hash (reg[0]+reg[1])%1000",1000,100000,80040,100.0000,9090.9091,11,989,0.2379
+"Polynomial Rolling (Base 31, M=1009)",1009,100000,132,99.1080,99.1080,1009,0,0.5679
+"Multiplicative (A=0.618, M=1024)",1024,100000,131,97.6562,97.6562,1024,0,1.0116
+"Multiplicative (A=0.618, M=1009)",1009,100000,133,99.1080,99.1080,1009,0,1.2431
+"FNV-1a 32-bit (M=1009)",1009,100000,133,99.1080,99.1080,1009,0,0.6068

@@ -1,0 +1,24 @@
+================================================================================
+          FAIR TRIAGE PRIORITY QUEUE DEMO (FIFO TIE-BREAKING)
+================================================================================
+
+Arrival Sequence:
+  [Arrived #1] P201 : Alice  (Arrival 1, Sev 8)
+  [Arrived #2] P202 : Bob    (Arrival 2, Sev 5)
+  [Arrived #3] P203 : Charlie(Arrival 3, Sev 8 - same as Alice)
+  [Arrived #4] P204 : Diana  (Arrival 4, Sev 9 - critical)
+  [Arrived #5] P205 : Edward (Arrival 5, Sev 8 - same as Alice & Charlie)
+  [Arrived #6] P206 : Fiona  (Arrival 6, Sev 5 - same as Bob)
+
+Treatment Dispatch Order (Highest Severity first, FIFO on equal severity):
+  Dispatch #1: P204 [Severity 9, Seq #4] -> Diana  (Arrival 4, Sev 9 - critical)
+  Dispatch #2: P201 [Severity 8, Seq #1] -> Alice  (Arrival 1, Sev 8)
+  Dispatch #3: P203 [Severity 8, Seq #3] -> Charlie(Arrival 3, Sev 8 - same as Alice)
+  Dispatch #4: P205 [Severity 8, Seq #5] -> Edward (Arrival 5, Sev 8 - same as Alice & Charlie)
+  Dispatch #5: P202 [Severity 5, Seq #2] -> Bob    (Arrival 2, Sev 5)
+  Dispatch #6: P206 [Severity 5, Seq #6] -> Fiona  (Arrival 6, Sev 5 - same as Bob)
+
+Proof of Fairness:
+1. Severity 9: Diana (arrived #4) treated first immediately.
+2. Severity 8: Alice (#1) -> Charlie (#3) -> Edward (#5) in STRICT arrival sequence!
+3. Severity 5: Bob (#2) -> Fiona (#6) in STRICT arrival sequence!

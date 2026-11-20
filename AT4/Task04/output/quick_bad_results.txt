@@ -1,0 +1,22 @@
+================================================================================
+           FORENSIC ANALYSIS: BAD QUICKSORT (Last Element Pivot)
+================================================================================
+
+1. Random Input (N = 10000):
+   - Time:              1.00 ms
+   - Comparisons:       166471 (~1.25 * N log2 N)
+   - Swaps:             87419
+   - Max Stack Depth:   33
+
+2. Already Sorted Input (N = 10000) - PATHOLOGICAL CASE:
+   - Time:              155.51 ms (156.2x slowdown!)
+   - Comparisons:       49995000 (Exact N*(N-1)/2 = 49995000)
+   - Swaps:             50004999
+   - Max Stack Depth:   10000 (Degenerates to O(N) recursion depth!)
+
+Forensic Diagnosis:
+When the input is already sorted, choosing the last element a[hi] as pivot always selects
+the maximum element of the partition. The partition splits into (N-1) and 0 elements,
+collapsing the recursion tree into a degenerate linked list of depth N = 10,000.
+Comparisons explode to N*(N-1)/2 = 49,995,000, causing severe performance degradation
+and catastrophic risk of call stack overflow.

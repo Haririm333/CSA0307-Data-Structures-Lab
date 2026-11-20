@@ -1,0 +1,99 @@
+Method: Bad Hash (reg[0]+reg[1])%1000
+  Table Size:          1000
+  Keys Processed:      100000
+  Max Chain Length:    80040
+  Avg Chain (All):     100.00
+  Avg Chain (NonEmpty):9090.91
+  Non-Empty Buckets:   11 (1.10%)
+  Empty Buckets:       989 (98.90%)
+  Avg Time (20 runs):  0.238 ms
+
+Method: Polynomial Rolling (Base 31, M=1009)
+  Table Size:          1009
+  Keys Processed:      100000
+  Max Chain Length:    132
+  Avg Chain (All):     99.11
+  Avg Chain (NonEmpty):99.11
+  Non-Empty Buckets:   1009 (100.00%)
+  Empty Buckets:       0 (0.00%)
+  Avg Time (20 runs):  0.568 ms
+
+Method: Multiplicative (A=0.618, M=1024)
+  Table Size:          1024
+  Keys Processed:      100000
+  Max Chain Length:    131
+  Avg Chain (All):     97.66
+  Avg Chain (NonEmpty):97.66
+  Non-Empty Buckets:   1024 (100.00%)
+  Empty Buckets:       0 (0.00%)
+  Avg Time (20 runs):  1.012 ms
+
+Method: Multiplicative (A=0.618, M=1009)
+  Table Size:          1009
+  Keys Processed:      100000
+  Max Chain Length:    133
+  Avg Chain (All):     99.11
+  Avg Chain (NonEmpty):99.11
+  Non-Empty Buckets:   1009 (100.00%)
+  Empty Buckets:       0 (0.00%)
+  Avg Time (20 runs):  1.243 ms
+
+Method: FNV-1a 32-bit (M=1009)
+  Table Size:          1009
+  Keys Processed:      100000
+  Max Chain Length:    133
+  Avg Chain (All):     99.11
+  Avg Chain (NonEmpty):99.11
+  Non-Empty Buckets:   1009 (100.00%)
+  Empty Buckets:       0 (0.00%)
+  Avg Time (20 runs):  0.607 ms
+
+================================================================================
+TASK 1: HASH FUNCTION DESIGN REVIEW & EVALUATION
+================================================================================
+
+Task 1.1 - Diagnose the Design (5 Major Defects Identified):
+1. Severe Range Restriction (Underutilization):
+   reg[0] and reg[1] are uppercase ASCII characters ('A' = 65, 'Z' = 90).
+   The sum (reg[0] + reg[1]) strictly lies in [130, 180] (at most 51 distinct values).
+   Even with 1000 buckets, at least 949 buckets (94.9%) remain completely empty forever!
+
+2. Catastrophic Skew on Regional Datasets:
+   In Tamil Nadu, ~80% of vehicles start with 'TN'. 'T' (84) + 'N' (78) = 162.
+   Hence, all 80,000 TN vehicles map to bucket 162, creating an 80,000-element chain!
+
+3. Information Discard / Zero Entropy from Remaining Characters:
+   The district code (e.g. '09'), series letters ('AB'), and unique 4 digits ('1234')
+   are entirely ignored, discarding 80% of the key's entropy.
+
+4. Non-Prime Table Size (M = 1000):
+   1000 is a composite number (2^3 * 5^3) sharing factors with base-10 numerical data,
+   preventing uniform cycle wrapping across table slots.
+
+5. Performance Degeneration from O(1) to O(N):
+   Because 80,000 keys collide in bucket 162, search and insertion degrade to O(N)
+   linear search through a linked list, causing complete collapse under large workloads.
+
+Task 1.2 - Repair the Design:
+   Designed a polynomial rolling hash function: h = (h * 31 + char) % M,
+   coupled with a prime table size (M = 1009 or 1021).
+   The prime multiplier 31 creates good diffusion across all characters, and the prime
+   table size breaks arithmetic correlations. Max chain dropped from ~80,000 to ~130,
+   with 100% bucket utilization.
+
+Task 1.3 - Design Defence (<= 100 Words):
+   A good hash function distributes keys uniformly across all table buckets, making collisions
+   independent random events. It must incorporate every character of the key so small input
+   changes cause wide output changes (diffusion/avalanche effect). It must execute in O(L)
+   time with minimal CPU cycles (fast bitwise shifts and adds), map deterministically to the
+   table size, and use prime modulus or Fibonacci multiplication to eliminate periodic clustering.
+
+Alternative Concept & Complexity Analysis:
+1. Multiplicative Hashing (Knuth: A = 0.6180339887...):
+   - Time: O(L) to fold key into integer k, plus O(1) floating/fixed-point multiplication.
+   - Space: O(1) auxiliary space.
+   - Excellent for power-of-two table sizes (M = 1024), fast shift implementation.
+2. FNV-1a (Fowler-Noll-Vo 32-bit):
+   - Time: O(L) byte-by-byte XOR and prime multiply (16777619u).
+   - Space: O(1) auxiliary space.
+   - Exceptional dispersion, low collision rate, highly cache-efficient and standard in systems.
