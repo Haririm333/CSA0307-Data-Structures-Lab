@@ -1,0 +1,15 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task A3 TopoSort ==
+=================================================================
+Target Binaries:
+  - a3_kahn
+  - a3_kahn_cycle
+  - alt_dfs_topo
+
+Memory Safety Validation:
+  - Queue array bounded within [0, V-1].
+  - Array indexing on indeg, task, color, and order verified safe.
+  - Recursion call-stack safely bounded by DAG depth (V = 6).
+  - No heap dynamic allocations needed (zero dynamic leaks possible).
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

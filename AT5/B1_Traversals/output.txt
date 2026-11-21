@@ -1,0 +1,85 @@
+Airport Guindy Saidapet Vadapalani Central Koyambedu Egmore
+Koyambedu is 3 stops away via: Koyambedu Vadapalani Guindy Airport
+--- b1_queue_trace ---
+========================================================================================
+           CHENNAI METRO BFS STEP-BY-STEP QUEUE TRACE (CSR ADJACENCY)                  
+========================================================================================
+Step   | Removed Vertex   | Hop Distance | Queue Contents After Dequeue            
+----------------------------------------------------------------------------------------
+1      | Airport          | 0            | [ ]
+       -> Enqueued Neighbor : Guindy           | Queue: [ Guindy(1) ]
+2      | Guindy           | 1            | [ ]
+       -> Enqueued Neighbor : Saidapet         | Queue: [ Saidapet(2) ]
+       -> Enqueued Neighbor : Vadapalani       | Queue: [ Saidapet(2) Vadapalani(5) ]
+3      | Saidapet         | 2            | [ Vadapalani(5) ]
+       -> Enqueued Neighbor : Central          | Queue: [ Vadapalani(5) Central(3) ]
+4      | Vadapalani       | 2            | [ Central(3) ]
+       -> Enqueued Neighbor : Koyambedu        | Queue: [ Central(3) Koyambedu(6) ]
+5      | Central          | 3            | [ Koyambedu(6) ]
+       -> Enqueued Neighbor : Egmore           | Queue: [ Koyambedu(6) Egmore(4) ]
+6      | Koyambedu        | 3            | [ Egmore(4) ]
+7      | Egmore           | 4            | [ ]
+========================================================================================
+Shortest Path from Airport (0) to Koyambedu (6):
+Total Stops: 3 stops
+Path: Koyambedu Vadapalani Guindy Airport
+========================================================================================
+--- b1_components_cycles ---
+========================================================================================
+         CHENNAI MONSOON FLOODING: CONNECTED COMPONENTS & CYCLE DETECTION               
+========================================================================================
+
+--- PART 1: Chennai 7-Station Metro Network ---
+Original Metro Network:
+ - Connected Components: 1
+ - Has Cycle: YES (Loop exists via Guindy-Vadapalani-Koyambedu-Egmore-Central-Saidapet)
+After Severe Flooding at Koyambedu & Vadapalani Junctions:
+ - Connected Components: 3 (Network fractured into isolated islands)
+
+--- PART 2: 20-Junction Chennai Urban Arterial Network ---
+Covering major delivery corridors across Chennai: Central, Egmore, T.Nagar, Guindy,
+Adyar, Vadapalani, Koyambedu, Ambattur, Porur, Velachery, Tambaram, etc.
+Original 20-Junction City Network:
+ - Connected Components: 1 (Fully Connected)
+ - Has Cycle: YES (Multiple alternative arterial routes)
+After Monsoon River Flooding (Adyar & Cooum River Bridges Submerged):
+ - Active Roads Cut: 9 critical river corridor bridges
+ - Connected Components: 6 (South Chennai / Tambaram isolated from Central / North)
+
+--- PART 3: Cycle Detection: Tree vs Cyclic Graph ---
+1. Hierarchical Feeder Tree (5 nodes, 4 edges):
+   - Has Cycle: NO (Expected: NO)
+2. Ring Feeder Network (5 nodes, 5 edges with 3-4 loop):
+   - Has Cycle: YES (Expected: YES)
+========================================================================================
+--- b1_matrix_vs_list ---
+========================================================================================================
+              GRAPH REPRESENTATION COMPARISON: ADJACENCY MATRIX vs ADJACENCY LIST (CSR)                 
+========================================================================================================
+
+V       | E(dir)    | Matrix BFS (s)   | CSR List BFS (s) | Matrix Mem      | List Mem        | Peak RSS   
+--------------------------------------------------------------------------------------------------------
+1000    | 3000      | 0.000993 s       | 0.000031       s | 0.95 MB         | 15.66 KB        | 4704 KB
+10000   | 30000     | 0.047988 s       | 0.000519       s | 95.37 MB        | 156.29 KB       | 101724 KB
+50000   | 150000    | 1.036227 s       | 0.001546       s | 2.33 GB         | 781.29 KB       | 2447036 KB
+========================================================================================================
+--- alt_dijkstra_unit ---
+========================================================================================
+           FEWEST-STOPS: BFS vs UNIT-WEIGHT DIJKSTRA (BINARY HEAP)                      
+========================================================================================
+
+--- PART 1: Verification on Chennai Metro Graph ---
+BFS Distances from Airport (0): [ 0 1 2 3 4 2 3 ]
+Unit Dijkstra Distances       : [ 0 1 2 3 4 2 3 ]
+Result: EXACT MATCH (VERIFIED)
+
+--- PART 2: Benchmark Scaling on Large Graphs (Median of 3 Runs) ---
+V        | E(dir)       | BFS Time (s)     | Dijkstra Time(s) | BFS Overhead | Heap Extra Space
+----------------------------------------------------------------------------------------
+10000    | 30000        | 0.000250         | 0.000904         | 3.62      x slower | 312 KB
+50000    | 150000       | 0.001274         | 0.004032         | 3.16      x slower | 1562 KB
+========================================================================================
+TAKEAWAY: For unweighted/unit-weight graphs, standard FIFO queue BFS runs in strictly
+O(V + E) linear time. A binary heap introduces an unnecessary O(log V) priority queue
+overhead per edge relaxation, making Dijkstra substantially slower and more memory-heavy.
+========================================================================================

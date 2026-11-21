@@ -1,0 +1,164 @@
+========================================================================================
+        B3.1: CORRECTNESS VERIFICATION OF SHORTEST-PATH ALGORITHMS (8 NODES)            
+========================================================================================
+
+Generated 8-Vertex Connected Graph (Weights 5 to 50):
+Edge List (Undirected):
+  (0 - 1, weight = 33)
+  (0 - 2, weight = 36)
+  (0 - 3, weight = 26)
+  (0 - 3, weight = 46)
+  (0 - 7, weight = 39)
+  (1 - 6, weight = 44)
+  (1 - 7, weight = 20)
+  (2 - 3, weight = 21)
+  (2 - 4, weight = 13)
+  (3 - 5, weight = 30)
+  (5 - 6, weight = 9)
+  (6 - 7, weight = 7)
+
+--- All-Pairs Distance Tables (Rows 0 to 7) ---
+Source 0:
+  Floyd-Warshall  : [   0  33  36  26  49  55  46  39 ]
+  Dijkstra (Array): [   0  33  36  26  49  55  46  39 ]
+  Dijkstra (Heap) : [   0  33  36  26  49  55  46  39 ]
+
+Source 1:
+  Floyd-Warshall  : [  33   0  69  59  82  36  27  20 ]
+  Dijkstra (Array): [  33   0  69  59  82  36  27  20 ]
+  Dijkstra (Heap) : [  33   0  69  59  82  36  27  20 ]
+
+Source 2:
+  Floyd-Warshall  : [  36  69   0  21  13  51  60  67 ]
+  Dijkstra (Array): [  36  69   0  21  13  51  60  67 ]
+  Dijkstra (Heap) : [  36  69   0  21  13  51  60  67 ]
+
+Source 3:
+  Floyd-Warshall  : [  26  59  21   0  34  30  39  46 ]
+  Dijkstra (Array): [  26  59  21   0  34  30  39  46 ]
+  Dijkstra (Heap) : [  26  59  21   0  34  30  39  46 ]
+
+Source 4:
+  Floyd-Warshall  : [  49  82  13  34   0  64  73  80 ]
+  Dijkstra (Array): [  49  82  13  34   0  64  73  80 ]
+  Dijkstra (Heap) : [  49  82  13  34   0  64  73  80 ]
+
+Source 5:
+  Floyd-Warshall  : [  55  36  51  30  64   0   9  16 ]
+  Dijkstra (Array): [  55  36  51  30  64   0   9  16 ]
+  Dijkstra (Heap) : [  55  36  51  30  64   0   9  16 ]
+
+Source 6:
+  Floyd-Warshall  : [  46  27  60  39  73   9   0   7 ]
+  Dijkstra (Array): [  46  27  60  39  73   9   0   7 ]
+  Dijkstra (Heap) : [  46  27  60  39  73   9   0   7 ]
+
+Source 7:
+  Floyd-Warshall  : [  39  20  67  46  80  16   7   0 ]
+  Dijkstra (Array): [  39  20  67  46  80  16   7   0 ]
+  Dijkstra (Heap) : [  39  20  67  46  80  16   7   0 ]
+
+========================================================================================
+VERIFICATION RESULT: ALL THREE MATCH
+Every all-pairs distance entry across all 64 pairs is identical across all 3 algorithms.
+========================================================================================
+--- b3_scaling ---
+========================================================================================================
+        B3.2: SHORTEST PATH SCALING BENCHMARK (V = 100, 1,000, 10,000; AVG DEGREE ~3)                   
+========================================================================================================
+
+V       | Dijkstra Arr (s) | Dijkstra Heap(s) | Floyd-Warshall (s)       | CSR Analytic | Peak RSS  
+--------------------------------------------------------------------------------------------------------
+100     | 0.000039         | 0.000005         | 0.001269 s               | 2.77 KB      | 3724 KB
+1000    | 0.001375         | 0.000068         | 0.513673 s               | 27.38 KB     | 11500 KB
+10000   | 0.243920         | 0.001340         | 513.673 s [ESTIMATED]    | 273.47 KB    | 11500 KB
+
+========================================================================================================
+CUBIC SCALING JUSTIFICATION FOR FLOYD-WARSHALL:
+ - Measured time at V = 100   : 0.001269 seconds
+ - Measured time at V = 1,000 : 0.513673 seconds
+ - Empirical growth factor (100 -> 1,000): 404.8x (Theoretical O(V^3) growth = 10^3 = 1000.0x)
+ - Predicted time at V = 10,000: 0.513673 s * 1000 = 513.673 seconds (~8.6 minutes / 0.14 hours)
+ - Memory requirement at V = 10,000 for flat matrix: 10,000^2 * 4 bytes = 400 MB
+========================================================================================================
+--- b3_astar ---
+========================================================================================
+        ASCII VISUALIZATION ON 20x20 CHENNAI MOBILITY GRID MAP                          
+        Legend: 'S' = Start, 'G' = Goal, '#' = Obstacle, '*' = Shortest Path            
+                '.' = Explored cell, ' ' = Unexplored cell                              
+========================================================================================
+
+--- (A) DIJKSTRA (Uniform-Cost Expansion) ---
+    Nodes Explored: 283 / 400 cells | Path Length: 29
+    # . . . # . . . # . . . . # #           
+    . . . . . # . . # . . # . . #   #       
+    . . S * # . . . . # . . # . . # . #     
+    . # # * . # . . . # . # . . . . . . #   
+    . . # * # . . . . . . . # . . . . . . . 
+    # . . * . # . . # . . . # . . . # # .   
+    . # . * * # . . . . . . . . # . # . #   
+    . # . . * * # . # . . # . . . # . . . # 
+    . # . . # * # . . # . . # . . . . . # . 
+    . . # # . * . . # . . . . . . . # . . . 
+    . . . . . * * * * * * . # . . . . . . . 
+    # . . . # . . . . # * # . # . . # . # . 
+    . . . . . . . . . . * * * * # # . # . . 
+    # . . . . . . . . . . . . * . . . . . # 
+    . . . . # # . . . . # . # * . . . . . . 
+    . . # . . . # . . . . . . * . # # . .   
+    . . . # . # . . . . . . # * * * * G # # 
+    . . # . . . . . . # . . # # # . .       
+    # . . . . . . . . . . . . #   .         
+    # # . # . . . . . . . . . #             
+
+--- (B) A* SEARCH (Goal-Directed Manhattan Heuristic) ---
+    Nodes Explored: 72 / 400 cells | Path Length: 29
+    #       #       #         # #           
+              #     #     #     #   #       
+        S * #         #     #     #   #     
+      # # * . #       #   #             #   
+        # * #               #               
+    #     * . #     #       #       # #     
+      #   * . #                 #   #   #   
+      #   * * * #   #     #       #       # 
+      #   . # * #     #     #           #   
+        # #   * . . #               #       
+              * * * * * * . #               
+    #       # . . .   # * #   #     #   #   
+              . . . . . * * .   # #   #     
+    #           . . . . . * . . . . .     # 
+            # # . . . . # * # . . .         
+        #       # . . . . * * * * # #       
+          #   #   . . . . . #   * * * G # # 
+        #             #     # # #           
+    #                         #             
+    # #   #                   #             
+========================================================================================
+
+========================================================================================================
+     B3.3: DIJKSTRA vs A* COMPARISON ON 200x200 GRID WITH ~25% OBSTACLES (5 PAIRS)                     
+========================================================================================================
+
+Pair   | Start -> Goal    | Path Length      | Dijkstra Pop | A* Pop (Manh)    | Reduction (%)    | Speedup     
+--------------------------------------------------------------------------------------------------------
+Pair 1 | (10,10)->(190,190) | 360 (Match)      | 29621        | 11390            | 61.5         % | 3.02x
+Pair 2 | (10,10)->(35,30) | 45 (Match)       | 1245         | 207              | 83.4         % | 5.63x
+Pair 3 | (20,180)->(180,20) | 320 (Match)      | 29100        | 4706             | 83.8         % | 4.57x
+Pair 4 | (100,10)->(100,180) | 208 (Match)      | 23744        | 3458             | 85.4         % | 9.43x
+Pair 5 | (15,100)->(185,100) | 218 (Match)      | 24913        | 4469             | 82.1         % | 5.42x
+--------------------------------------------------------------------------------------------------------
+AVERAGE EXPLORATION REDUCTION VIA A* (MANHATTAN): 79.2% fewer vertices explored!
+PATH LENGTH INTEGRITY: In all 5 pairs, Dijkstra and A* produced IDENTICAL path lengths,
+confirming admissibility and consistency of the Manhattan metric on 4-directional grids.
+
+--- PART 3: Theoretical Edge Cases: h=0 Equivalence & Inadmissible Heuristics ---
+1. Heuristic Degeneration (h = 0):
+   - Dijkstra Explored : 1245 nodes (Path Length = 45)
+   - A* with h = 0     : 1245 nodes (Path Length = 45)
+   - Observation: When h(n)=0 for all n, f(n) = g(n) + 0 = g(n), making A* strictly identical to Dijkstra!
+
+2. Inadmissible Heuristic (h = 3.5 x Manhattan > h*):
+   - Admissible A* (h = 1.0) : Path Length = 45, Explored = 207
+   - Inadmissible A* (h = 3.5) : Path Length = 59, Explored = 73
+   - RESULT: Inadmissible heuristic returned SUBOPTIMAL path length (59 > 45)!
+========================================================================================================

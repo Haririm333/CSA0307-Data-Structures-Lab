@@ -1,0 +1,67 @@
+   0   5   8   9
+ 999   0   3   4
+ 999 999   0   1
+ 999 999 999   0
+--- a4_floyd_steps ---
+========================================================================
+        FLOYD-WARSHALL STEP-BY-STEP TRACE (INTERMEDIATE MATRICES)       
+========================================================================
+Initial Matrix (D^(0) - direct edges only):
+   0   5 INF  10
+ INF   0   3 INF
+ INF INF   0   1
+ INF INF INF   0
+
+--- Matrix after allowing intermediate vertex k = 0 ---
+   0   5 INF  10
+ INF   0   3 INF
+ INF INF   0   1
+ INF INF INF   0
+
+--- Matrix after allowing intermediate vertex k = 1 ---
+   0   5   8  10
+ INF   0   3 INF
+ INF INF   0   1
+ INF INF INF   0
+>> Note at k = 1: d[0][2] reduced from INF to 8 via path (0 -> 1 -> 2 = 5 + 3)
+
+--- Matrix after allowing intermediate vertex k = 2 ---
+   0   5   8   9
+ INF   0   3   4
+ INF INF   0   1
+ INF INF INF   0
+>> Note at k = 2: d[0][3] reduced from 10 to 9 via intermediate vertex 2: d[0][2] + d[2][3] = 8 + 1 = 9
+
+--- Matrix after allowing intermediate vertex k = 3 ---
+   0   5   8   9
+ INF   0   3   4
+ INF INF   0   1
+ INF INF INF   0
+
+========================================================================
+EXPLANATION OF WHY d[0][3] CHANGED FROM 10 TO 9:
+Direct edge (0 -> 3) had weight 10.
+When intermediate vertex k=1 is relaxed, d[0][2] is discovered: 0 -> 1 (5) + 1 -> 2 (3) = 8.
+When intermediate vertex k=2 is relaxed, path 0 -> 2 -> 3 is evaluated: d[0][2] (8) + d[2][3] (1) = 9.
+Since 9 < 10, d[0][3] is updated to 9, corresponding to path 0 -> 1 -> 2 -> 3 (5 + 3 + 1 = 9).
+========================================================================
+--- alt_dijkstra_all_pairs ---
+========================================================================================
+           ALL-PAIRS SHORTEST PATH: FLOYD-WARSHALL vs ALL-PAIRS DIJKSTRA                
+========================================================================================
+
+--- PART 1: Verification on Task A4 4-Vertex Graph ---
+Floyd-Warshall 4x4 Table vs All-Pairs Dijkstra: EXACT MATCH (VERIFIED)
+Row 0: FW=[    0    5    8    9 ] | Dijkstra=[    0    5    8    9 ]
+Row 1: FW=[  999    0    3    4 ] | Dijkstra=[  999    0    3    4 ]
+Row 2: FW=[  999  999    0    1 ] | Dijkstra=[  999  999    0    1 ]
+Row 3: FW=[  999  999  999    0 ] | Dijkstra=[  999  999  999    0 ]
+
+--- PART 2: Benchmark Scaling (Average degree ~3 edges/vertex, median of 3 runs) ---
+Vertices | Edges (CSR)  | Floyd-Warshall (s)   | All-Pairs Dijkstra(s) | Speedup   
+----------------------------------------------------------------------------------------
+30       | 90           | 0.000031             | 0.000041             | 0.75      x
+200      | 600          | 0.005601             | 0.002510             | 2.23      x
+400      | 1200         | 0.044805             | 0.011170             | 4.01      x
+800      | 2400         | 0.382366             | 0.046481             | 8.23      x
+========================================================================================

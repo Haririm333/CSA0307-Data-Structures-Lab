@@ -1,0 +1,33 @@
+Lease Power Racks Staff Network Launch
+valid schedule
+--- a3_kahn_cycle ---
+Executing Kahn's Algorithm on Hub Setup with Launch -> Lease back-edge:
+Processed tasks: (none)
+cycle detected
+
+Unresolved / Stuck Tasks (in-degree remaining > 0):
+ - Task 0: Lease (remaining in-degree = 1)
+ - Task 1: Power (remaining in-degree = 1)
+ - Task 2: Racks (remaining in-degree = 1)
+ - Task 3: Network (remaining in-degree = 2)
+ - Task 4: Staff (remaining in-degree = 1)
+ - Task 5: Launch (remaining in-degree = 2)
+--- alt_dfs_topo ---
+========================================================================
+              DFS 3-COLORING TOPOLOGICAL SORT COMPARISON                
+========================================================================
+
+--- Running 3-Color DFS Topological Sort on Valid Hub Setup Graph ---
+Valid schedule found (DFS Finishing Order):
+Lease -> Staff -> Racks -> Power -> Network -> Launch
+
+--- Running 3-Color DFS Topological Sort on Cyclic Graph (Launch -> Lease) ---
+Cycle detected! (Encountered GREY back-edge in recursion stack)
+
+========================================================================
+Comparison of Valid Topological Schedules:
+1. Kahn's (BFS In-Degree) Order : Lease Power Racks Staff Network Launch
+2. DFS Finishing (Post-Order)   : Lease Staff Power Racks Network Launch
+(Both satisfy all dependency constraints: Lease before Power/Racks/Staff,
+ Power and Racks before Network, Network and Staff before Launch.)
+========================================================================

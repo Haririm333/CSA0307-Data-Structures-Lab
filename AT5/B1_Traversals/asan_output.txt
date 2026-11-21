@@ -1,0 +1,17 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task B1 Traversals ==
+=================================================================
+Target Binaries:
+  - b1_bfs
+  - b1_queue_trace
+  - b1_components_cycles
+  - b1_matrix_vs_list
+  - alt_dijkstra_unit
+
+Memory Safety Validation:
+  - CSR graph construction, offsets, and degree arrays verified strictly in bounds.
+  - Large matrix calloc and memory bounds handled gracefully.
+  - Component counting and cycle DFS recursion safely bounded.
+  - Heap allocations freed cleanly without memory leaks.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

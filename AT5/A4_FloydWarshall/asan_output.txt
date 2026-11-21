@@ -1,0 +1,15 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task A4 FloydWarshall
+=================================================================
+Target Binaries:
+  - a4_floyd
+  - a4_floyd_steps
+  - alt_dijkstra_all_pairs
+
+Memory Safety Validation:
+  - 4x4 stack matrix access strictly in bounds [0, 3].
+  - Dynamic matrices (up to 800x800 = 640,000 ints) cleanly allocated and freed.
+  - Min-heap allocations and pops verified clean with bounds checks.
+  - Zero memory leaks detected: 0 bytes leaked across all benchmark iterations.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

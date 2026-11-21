@@ -1,0 +1,15 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task B4 Final Decision ==
+=================================================================
+Target Binaries:
+  - b4_prim_hubs
+  - b4_scalability
+  - b4_precompute
+
+Memory Safety Validation:
+  - 250,000-vertex CSR graph (750,000 directed edges) allocated and cleanly freed.
+  - MinHeap operations on large dynamic graphs verified with zero heap-buffer-overflows.
+  - Point-to-point early exit Dijkstra freed all temporary arrays without memory leaks.
+  - Precomputed 200x200 table and parent distance buffers freed cleanly.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

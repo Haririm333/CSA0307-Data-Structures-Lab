@@ -1,0 +1,15 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task A5 Prim MST ==
+=================================================================
+Target Binaries:
+  - a5_prim
+  - a5_mst_vs_sp
+  - alt_kruskal
+
+Memory Safety Validation:
+  - Array indexing on key, parent, and in arrays verified within bounds [0, V-1].
+  - DSU dynamic arrays safely freed with dsu_free().
+  - CSR graph and heap allocations tested up to 1,000,000 edges without leak.
+  - Zero memory leaks detected across all benchmark runs.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

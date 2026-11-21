@@ -1,0 +1,42 @@
+0-1(2) 1-2(3) 0-3(6) 1-4(5) 
+total cost = 16
+--- a5_mst_vs_sp ---
+========================================================================
+         SHORTEST PATH vs MINIMUM SPANNING TREE PATH COMPARISON         
+========================================================================
+
+Prim's MST Total Cost: 16 lakh
+MST Edges: 0-1(2) 1-2(3) 0-3(6) 1-4(5) 
+
+1. Shortest Path (Dijkstra) between Node 4 and Node 2:
+   - Route: 4 -> 2
+   - Cost: 7 lakh (direct road 4-2 exists with cost 7)
+
+2. Path inside MST between Node 4 and Node 2:
+   - Route: 4 -> 1 -> 2
+   - Cost: 8 lakh (4 -> 1 is 5, 1 -> 2 is 3, total = 8)
+
+========================================================================
+ENGINEERING CONCLUSION:
+An MST minimizes the GLOBAL SUM of all edges in the spanning tree (16 lakh),
+guaranteeing total network connectivity with minimal infrastructure expenditure.
+However, the MST does NOT guarantee point-to-point shortest paths:
+Direct road 4-2 costs 7 lakh, whereas routing through the MST costs 8 lakh.
+========================================================================
+--- alt_kruskal ---
+========================================================================================
+           MINIMUM SPANNING TREE: PRIM (ARRAY/HEAP) vs KRUSKAL BENCHMARK                
+========================================================================================
+
+--- PART 1: Verification on Task A5 5-Village Fibre Network ---
+Kruskal Total Cost   : 16 lakh
+Prim (Array) Total   : 16 lakh
+Prim (Heap) Total    : 16 lakh
+Status: ALL MATCH EXPECTED 16 (VERIFIED)
+
+--- PART 2: Performance Scaling Benchmark (Median of 3 Runs) ---
+Graph Type           | V        | E (undir)    | Prim Array (s)   | Prim Heap (s)    | Kruskal (s)     
+----------------------------------------------------------------------------------------------------
+Sparse Network       | 10000    | 30000        | 0.096149         | 0.004132         | 0.003800        
+Dense Network        | 2000     | 1000000      | 0.003649         | 0.008997         | 0.063466        
+====================================================================================================

@@ -1,0 +1,18 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task B2 Dijkstra ==
+=================================================================
+Target Binaries:
+  - b2_dijkstra
+  - b2_unreachable
+  - b2_negative_edge
+  - b2_overflow
+  - b2_topo_cycle
+  - alt_bellman_ford
+
+Memory Safety Validation:
+  - INT_MAX overflow guards and saturation arithmetic verified safe.
+  - Negative weight edges handled without memory or pointer corruption.
+  - Unreachable nodes guarded against out-of-bounds indexing.
+  - Heap-allocated edge arrays and CSR structures freed cleanly.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

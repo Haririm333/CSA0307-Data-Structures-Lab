@@ -1,0 +1,110 @@
+0 1 3 5 4 2 
+--- a2_bfs ---
+BFS Traversal starting from vertex 0:
+Initial graph has 6 vertices (0 to 5).
+
+Initial queue: [ 0 ]
+
+Step 1: Dequeued vertex 0
+  Queue immediately after dequeue: [ ]
+  -> Discovered neighbor 1 (enqueued)
+  -> Discovered neighbor 2 (enqueued)
+  Queue after enqueuing neighbors: [ 1 2 ]
+
+Step 2: Dequeued vertex 1
+  Queue immediately after dequeue: [ 2 ]
+  -> Discovered neighbor 3 (enqueued)
+  -> Discovered neighbor 4 (enqueued)
+  Queue after enqueuing neighbors: [ 2 3 4 ]
+
+Step 3: Dequeued vertex 2
+  Queue immediately after dequeue: [ 3 4 ]
+  Queue after enqueuing neighbors: [ 3 4 ]
+
+Step 4: Dequeued vertex 3
+  Queue immediately after dequeue: [ 4 ]
+  -> Discovered neighbor 5 (enqueued)
+  Queue after enqueuing neighbors: [ 4 5 ]
+
+Step 5: Dequeued vertex 4
+  Queue immediately after dequeue: [ 5 ]
+  Queue after enqueuing neighbors: [ 5 ]
+
+Step 6: Dequeued vertex 5
+  Queue immediately after dequeue: [ ]
+  Queue after enqueuing neighbors: [ ]
+
+BFS Visit Order: 0 1 2 3 4 5 
+--- a2_trace7 ---
+========================================================================================
+                          BFS TRACE ON 7-VERTEX CHENNAI NETWORK                         
+========================================================================================
+Step   | Action       | Node Processed   | Queue Contents (Head -> Tail)             
+----------------------------------------------------------------------------------------
+1      | Enqueue(Start) | Central(0)       | [ Central(0) ]
+2      | Dequeue      | Pop Central(0)   | [ ]
+3      | Enqueue      | Enq Egmore(1)    | [ Egmore(1) ]
+4      | Enqueue      | Enq T.Nagar(2)   | [ Egmore(1) T.Nagar(2) ]
+5      | Dequeue      | Pop Egmore(1)    | [ T.Nagar(2) ]
+6      | Enqueue      | Enq Guindy(3)    | [ T.Nagar(2) Guindy(3) ]
+7      | Dequeue      | Pop T.Nagar(2)   | [ Guindy(3) ]
+8      | Enqueue      | Enq Adyar(4)     | [ Guindy(3) Adyar(4) ]
+9      | Dequeue      | Pop Guindy(3)    | [ Adyar(4) ]
+10     | Enqueue      | Enq Velachery(5) | [ Adyar(4) Velachery(5) ]
+11     | Enqueue      | Enq Tambaram(6)  | [ Adyar(4) Velachery(5) Tambaram(6) ]
+12     | Dequeue      | Pop Adyar(4)     | [ Velachery(5) Tambaram(6) ]
+13     | Dequeue      | Pop Velachery(5) | [ Tambaram(6) ]
+14     | Dequeue      | Pop Tambaram(6)  | [ ]
+========================================================================================
+
+========================================================================================
+                          DFS TRACE ON 7-VERTEX CHENNAI NETWORK                         
+========================================================================================
+Step   | Action       | Node Processed   | Stack Contents (Bottom -> Top)            
+----------------------------------------------------------------------------------------
+1      | Push(Start)  | Central(0)       | [ Central(0) ]
+2      | Pop & Visit  | Central(0)       | [ ]
+3      | Push Neighbor | Push T.Nagar(2)  | [ T.Nagar(2) ]
+4      | Push Neighbor | Push Egmore(1)   | [ T.Nagar(2) Egmore(1) ]
+5      | Pop & Visit  | Egmore(1)        | [ T.Nagar(2) ]
+6      | Push Neighbor | Push Guindy(3)   | [ T.Nagar(2) Guindy(3) ]
+7      | Pop & Visit  | Guindy(3)        | [ T.Nagar(2) ]
+8      | Push Neighbor | Push Tambaram(6) | [ T.Nagar(2) Tambaram(6) ]
+9      | Push Neighbor | Push Velachery(5) | [ T.Nagar(2) Tambaram(6) Velachery(5) ]
+10     | Push Neighbor | Push T.Nagar(2)  | [ T.Nagar(2) Tambaram(6) Velachery(5) T.Nagar(2) ]
+11     | Pop & Visit  | T.Nagar(2)       | [ T.Nagar(2) Tambaram(6) Velachery(5) ]
+12     | Push Neighbor | Push Adyar(4)    | [ T.Nagar(2) Tambaram(6) Velachery(5) Adyar(4) ]
+13     | Pop & Visit  | Adyar(4)         | [ T.Nagar(2) Tambaram(6) Velachery(5) ]
+14     | Push Neighbor | Push Velachery(5) | [ T.Nagar(2) Tambaram(6) Velachery(5) Velachery(5) ]
+15     | Pop & Visit  | Velachery(5)     | [ T.Nagar(2) Tambaram(6) Velachery(5) ]
+16     | Push Neighbor | Push Tambaram(6) | [ T.Nagar(2) Tambaram(6) Velachery(5) Tambaram(6) ]
+17     | Pop & Visit  | Tambaram(6)      | [ T.Nagar(2) Tambaram(6) Velachery(5) ]
+18     | Pop(Already Seen) | Velachery(5)     | [ T.Nagar(2) Tambaram(6) ]
+19     | Pop(Already Seen) | Tambaram(6)      | [ T.Nagar(2) ]
+20     | Pop(Already Seen) | T.Nagar(2)       | [ ]
+========================================================================================
+--- alt_dfs_iterative ---
+========================================================================
+        RECURSIVE vs ITERATIVE DFS (STACK OVERFLOW RISK STUDY)          
+========================================================================
+
+--- Test 1: Linear Chain of 50000 Junctions ---
+1. Explicit Iterative DFS: SUCCESS
+   - Visited: 50000 / 50000 junctions
+   - Max explicit stack depth: 50000
+   - Time: 0.001059 seconds
+2. Call-Stack Recursive DFS: SUCCESS
+   - Visited: 50000 / 50000 junctions
+   - Max recursion depth: 50000
+   - Time: 0.003746 seconds
+
+--- Test 2: Linear Chain of 1000000 Junctions (Scale Stress Test) ---
+1. Explicit Iterative DFS: SUCCESS
+   - Visited: 1000000 / 1000000 junctions
+   - Max explicit stack depth: 1000000
+   - Time: 0.020516 seconds
+2. Call-Stack Recursive DFS: GUARDED (Omitted by default to prevent segmentation fault / stack overflow)
+   - Theoretical call stack required: 1,000,000 frames * ~48 bytes = ~48 MB.
+   - System stack limits: Linux default 'ulimit -s' is 8192 KB (8 MB); Windows default is 1 MB.
+   - To force crash on your platform, run with: ./alt_dfs_iterative --crash
+========================================================================

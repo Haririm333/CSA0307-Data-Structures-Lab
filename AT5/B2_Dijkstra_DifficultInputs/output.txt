@@ -1,0 +1,124 @@
+0 7 9 20 20 11 
+route to 4: 4 5 2 0
+--- b2_unreachable ---
+========================================================================
+        DIJKSTRA WITH UNREACHABLE / DISCONNECTED VERTICES               
+========================================================================
+
+[Observation: Priority queue emptied early at round 4 because remaining vertices have dist == INF]
+
+Computed Distances from Source Vertex 0:
+Vertex 0: 0 min
+Vertex 1: 7 min
+Vertex 2: 9 min
+Vertex 3: 20 min
+Vertex 4: unreachable
+Vertex 5: unreachable
+
+Route Queries from Vertex 0:
+Target 0 (cost 0 min): 0
+Target 1 (cost 7 min): 1 0
+Target 2 (cost 9 min): 2 0
+Target 3 (cost 20 min): 3 2 0
+Target 4: no route to 4
+Target 5: no route to 5
+========================================================================
+--- b2_negative_edge ---
+========================================================================================
+        FAILURE OF DIJKSTRA ON GRAPHS WITH NEGATIVE EDGES                               
+========================================================================================
+
+Graph Topology:
+ - Edge 0 -> 1 (weight +2)
+ - Edge 0 -> 2 (weight +3)
+ - Edge 2 -> 1 (weight -2)
+
+Vertex   | Dijkstra dist[v] | Bellman-Ford     | Floyd-Warshall   | Correctness 
+----------------------------------------------------------------------------------------
+0        | 0                | 0                | 0                | MATCH
+1        | 2                | 1                | 1                | WRONG (FAILURE)
+2        | 3                | 3                | 3                | MATCH
+========================================================================================
+ANALYSIS OF THE GREEDY CHOICE PROPERTY VIOLATION:
+1. Dijkstra selects vertex 1 at Step 1 because dist[1] = 2 < dist[2] = 3.
+2. Greedy invariant assumes: 'Once marked done, dist[1] can never decrease further'.
+3. With negative edge (2 -> 1 = -2), routing through vertex 2 gives cost 3 + (-2) = 1.
+4. Because vertex 1 is already closed, Dijkstra never re-evaluates it, yielding dist[1] = 2 (WRONG).
+5. Both Bellman-Ford and Floyd-Warshall correctly discover dist[1] = 1.
+========================================================================================
+--- b2_overflow ---
+========================================================================
+        INTEGER OVERFLOW VULNERABILITIES IN DIJKSTRA RELAXATION         
+========================================================================
+
+1. BUGGY DIJKSTRA (32-bit Two's Complement Wrapping):
+   - dist[1] = 1500000000 (1,500,000,000)
+   - dist[2] = dist[1] + W2 = -1294967296 (NEGATIVE OVERFLOW!)
+   - Result: dist[2] evaluated as -1294967296 < dist[0] (0), corrupting shortest path logic.
+
+2. FIX A (64-bit 'long long' Accumulator):
+   - dist[1] = 1500000000
+   - dist[2] = 3000000000 (Exact true sum: 3,000,000,000, safe from overflow)
+
+3. FIX B (Explicit Saturation Guard: w <= INF - dist[u]):
+   - Detected impending overflow: W2 (1500000000) > INF - dist[1] (647483647)
+   - dist[1] = 1500000000
+   - dist[2] = 2147483647 (Safely saturated to INT_MAX)
+
+4. UNVISITED VERTEX INF + W GUARD:
+   - Without guard: INF + 50 wraps around to: -2147483599 (corrupts min-heap)
+   - With guard 'if (dist[u] != INF)': relaxation is safely skipped for unreached nodes.
+========================================================================
+--- b2_topo_cycle ---
+========================================================================
+        KAHN'S ALGORITHM UNDER CYCLIC DEPENDENCY GRAPH                  
+========================================================================
+
+Initial In-Degrees:
+ - Lease      : in-degree = 1
+ - Power      : in-degree = 1
+ - Racks      : in-degree = 1
+ - Network    : in-degree = 2
+ - Staff      : in-degree = 1
+ - Launch     : in-degree = 2
+
+Execution Trace:
+
+Status: CYCLE DETECTED (DEADLOCK)
+Total tasks scheduled: 0 / 6
+
+TASKS STUCK IN DEADLOCK CYCLE (In-degree never reached 0):
+ - Lease      (Remaining in-degree = 1, awaiting prerequisite completion)
+ - Power      (Remaining in-degree = 1, awaiting prerequisite completion)
+ - Racks      (Remaining in-degree = 1, awaiting prerequisite completion)
+ - Network    (Remaining in-degree = 2, awaiting prerequisite completion)
+ - Staff      (Remaining in-degree = 1, awaiting prerequisite completion)
+ - Launch     (Remaining in-degree = 2, awaiting prerequisite completion)
+
+Dependency Cycle Pathway:
+  Launch -> Lease -> {Power, Racks} -> Network -> Launch
+  Launch -> Lease -> Staff -> Launch
+========================================================================
+--- alt_bellman_ford ---
+========================================================================================
+          BELLMAN-FORD ALGORITHM: NEGATIVE EDGES, CYCLES & BENCHMARKS                   
+========================================================================================
+
+--- TEST 1: Graph with Negative Edge (No Cycle) ---
+Status: PASS (No negative cycle)
+Distances from 0: dist[0]=0, dist[1]=1 (CORRECT via 0->2->1), dist[2]=3
+
+--- TEST 2: Graph with Negative Cycle ---
+Result: NEGATIVE CYCLE DETECTED (VERIFIED)
+
+--- TEST 3: Chennai 6-Node Urban Network Verification ---
+Bellman-Ford Distances: 0 7 9 20 20 11 
+Expected Dijkstra     : 0 7 9 20 20 11 
+Status: EXACT MATCH (VERIFIED)
+
+--- TEST 4: Benchmark: Dijkstra (Array) vs Bellman-Ford (Median of 3 Runs) ---
+V        | Edges (dir)  | Dijkstra Array (s)   | Bellman-Ford (s)     | Speedup     
+----------------------------------------------------------------------------------------
+1000     | 3000         | 0.001516             | 0.000034             | 0.02      x faster
+5000     | 15000        | 0.027508             | 0.000305             | 0.01      x faster
+========================================================================================

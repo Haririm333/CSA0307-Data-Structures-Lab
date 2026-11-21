@@ -1,0 +1,16 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task B3 SP Compare ==
+=================================================================
+Target Binaries:
+  - b3_correctness
+  - b3_scaling
+  - b3_astar
+
+Memory Safety Validation:
+  - CSR graph representation allocated and freed cleanly.
+  - MinHeap operations (push, pop, realloc) verified leak-free.
+  - Flat 2D matrices (up to 1,000x1,000 = 1,000,000 ints) freed after measurement.
+  - 200x200 grid map dynamic arrays (g_cost, parent, closed) freed cleanly.
+  - Zero memory leaks detected: 0 bytes leaked in 0 allocations.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================

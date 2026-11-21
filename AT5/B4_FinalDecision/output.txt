@@ -1,0 +1,111 @@
+========================================================================================
+        B4.1: CHENNAI 20-HUB FIBRE CABLE LAYOUT PLANNING & FAULT SIMULATION             
+========================================================================================
+
+20 Hubs configured across Chennai metropolitan area.
+Allowed links: 165 / 190 (Disallowed ~15%: 25 routes forbidden due to terrain/zoning)
+
+--- INITIAL FIBRE CABLE PLAN (Prim's Algorithm) ---
+Total Infrastructure Cost: 640 lakh (Kruskal Verification: 640 lakh - EXACT MATCH)
+No   | Hub A                <-> Hub B                | Cost (Rs lakh)
+--------------------------------------------------------------------
+1    | Hub01_Central        <-> Hub02_Egmore         | 20 lakh
+2    | Hub02_Egmore         <-> Hub03_Parrys         | 40 lakh
+3    | Hub01_Central        <-> Hub04_Royapettah     | 30 lakh
+4    | Hub04_Royapettah     <-> Hub05_Mylapore       | 20 lakh
+5    | Hub07_Nungambakkam   <-> Hub06_T_Nagar        | 20 lakh
+6    | Hub04_Royapettah     <-> Hub07_Nungambakkam   | 20 lakh
+7    | Hub06_T_Nagar        <-> Hub08_Saidapet       | 20 lakh
+8    | Hub08_Saidapet       <-> Hub09_Guindy         | 20 lakh
+9    | Hub05_Mylapore       <-> Hub10_Adyar          | 40 lakh
+10   | Hub10_Adyar          <-> Hub11_BesantNagar    | 20 lakh
+11   | Hub13_Thiruvanmiyur  <-> Hub12_Velachery      | 30 lakh
+12   | Hub10_Adyar          <-> Hub13_Thiruvanmiyur  | 20 lakh
+13   | Hub13_Thiruvanmiyur  <-> Hub14_OMR_Perungudi  | 20 lakh
+14   | Hub14_OMR_Perungudi  <-> Hub15_Sholinganallur | 70 lakh
+15   | Hub12_Velachery      <-> Hub16_Airport        | 60 lakh
+16   | Hub16_Airport        <-> Hub17_Tambaram       | 80 lakh
+17   | Hub20_Koyambedu      <-> Hub18_Porur          | 60 lakh
+18   | Hub06_T_Nagar        <-> Hub19_Vadapalani     | 20 lakh
+19   | Hub19_Vadapalani     <-> Hub20_Koyambedu      | 30 lakh
+--------------------------------------------------------------------
+Most Expensive Cable in MST: Hub16_Airport <-> Hub17_Tambaram (80 lakh)
+
+--- FAULT SIMULATION 1: Sever Most Expensive Link [Hub16_Airport <-> Hub17_Tambaram] ---
+Re-routed MST Total Cost: 690 lakh (Increase: +50 lakh)
+Kruskal Cross-Check: 690 lakh (VERIFIED)
+Replacement Edge Added to Restore Tree:
+ -> REPLACED WITH: Hub12_Velachery <-> Hub17_Tambaram (Cost: 130 lakh)
+
+--- FAULT SIMULATION 2: Sever Mid-Weight Link [Hub10_Adyar <-> Hub11_BesantNagar (20 lakh)] ---
+Re-routed MST Total Cost: 640 lakh (Increase: +0 lakh)
+Kruskal Cross-Check: 640 lakh (VERIFIED)
+Replacement Edge Added to Restore Tree:
+ -> REPLACED WITH: Hub13_Thiruvanmiyur <-> Hub11_BesantNagar (Cost: 20 lakh)
+========================================================================================
+--- b4_scalability ---
+========================================================================================================
+        B4.2: LARGE-SCALE HIGH-PERFORMANCE ROAD NETWORK SCALABILITY BENCHMARK (250K NODES)              
+========================================================================================================
+
+--- PART 1: Query Latency Scaling (Average degree ~3, 10 Random Sources) ---
+Vertices | Edges(dir)   | Analytic CSR Mem | Heap Memory      | Median Query   | Peak RSS    
+--------------------------------------------------------------------------------------------------------
+10000    | 30000        | 0.27             MB | 0.31             MB | 0.8265       ms | 4444 KB
+50000    | 150000       | 1.34             MB | 1.53             MB | 2.9602       ms | 7852 KB
+100000   | 300000       | 2.67             MB | 3.05             MB | 6.4876       ms | 12028 KB
+250000   | 750000       | 6.68             MB | 7.63             MB | 20.5374      ms | 25416 KB
+
+--- SCALING COMPLEXITY ANALYSIS ---
+ - Scaling from V = 10,000 to 250,000 (Size multiplier: 25.0x)
+ - Time multiplier: 24.85x (Median query: 0.83 ms -> 20.54 ms)
+ - Empirical Log-Log Scaling Exponent: 1.00 (Theoretical O(V log V) ~ 1.1x - 1.2x)
+
+--- PART 2: Feasibility of 2-Minute Full Recomputation Window (120 s) ---
+1. Scenario A: N = 100 Major Junctions / Distribution Hubs:
+   - Total Recompute Time : 2.054 seconds (100 * 20.5374 ms)
+   - Budget Utilization   : 1.71% of 120-second window -> HIGHLY FEASIBLE (Leaves 117.9s for other workloads)
+
+2. Scenario B: N = 1000 Major Junctions / Distribution Hubs:
+   - Total Recompute Time : 20.537 seconds (1000 * 20.5374 ms)
+   - Budget Utilization   : 17.11% of 120-second window
+   - Feasibility Assessment: FEASIBLE within the 120s window.
+========================================================================================================
+--- b4_precompute ---
+========================================================================================================
+       B4.2 ALT: PRECOMPUTATION STRATEGY FOR K = 200 MAJOR JUNCTIONS (250K NETWORK)                     
+========================================================================================================
+
+Generating synthetic 250,000-junction road network (~750,000 edges)...
+Selected K = 200 major urban distribution hubs across the city map.
+
+--- PHASE 1: Table Precomputation (K = 200 Dijkstra Runs) ---
+Total Precomputation Time: 3.968 seconds (19.84 ms per hub)
+Budget Utilization: consumes 3.31% of the 2-minute (120 s) scheduling window!
+
+--- PHASE 2: Storage Overhead Analysis ---
+1. Distance-Only Matrix (K x K): 160000 bytes (156.25 KB / 0.153 MB)
+2. Distances + Hub-to-Hub Next-Hop Table: 320000 bytes (312.50 KB / 0.305 MB)
+3. Complete Precomputed Path Trees (K x |V| full parent pointers): 200000000 bytes (190.73 MB)
+
+--- PHASE 3: Request Latency Comparison (Table Lookup vs Fresh Point-to-Point Dijkstra) ---
+1. Precomputed Table Lookup (Tested across 1000000 queries):
+   - Total Time     : 0.0020 seconds
+   - Latency/Query  : 2.04 nanoseconds per lookup
+   - Throughput     : 489.5 million queries / second
+
+2. Fresh Point-to-Point Dijkstra (with early goal exit):
+   - Query 1 (Hub 6654 -> Hub 3065): dist = 3081, latency = 1.94 ms
+   - Query 2 (Hub 26038 -> Hub 2731): dist = 6836, latency = 5.40 ms
+   - Query 3 (Hub 5409 -> Hub 21172): dist = 7985, latency = 10.98 ms
+   - Query 4 (Hub 28694 -> Hub 23208): dist = 630, latency = 0.27 ms
+   - Query 5 (Hub 199 -> Hub 23888): dist = 6571, latency = 12.14 ms
+   - Median Fresh Query Latency: 5.40 ms
+
+========================================================================================================
+SPEEDUP FACTOR: Table lookup is 2644756x faster than fresh point-to-point Dijkstra!
+ENGINEERING CONCLUSION:
+Precomputing the 200 x 200 distance matrix requires merely 156.25 KB of memory and consumes only
+3.31% of the 2-minute batch update window (3.97s / 120s).
+This delivers nanosecond dispatch responses for real-time delivery routing APIs.
+========================================================================================================

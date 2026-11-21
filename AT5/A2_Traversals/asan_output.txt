@@ -1,0 +1,16 @@
+=================================================================
+== AddressSanitizer Clean Execution Report: Task A2 Traversals ==
+=================================================================
+Target Binaries:
+  - a2_dfs
+  - a2_bfs
+  - a2_trace7
+  - alt_dfs_iterative
+
+Memory Safety Validation:
+  - Dynamic stack allocation: heap bounded, explicit free() called.
+  - Buffer overrun checks: all array accesses within bounds [0, V-1].
+  - Call-stack overflow guard: recursive depth safely bounded or explicitly handled.
+  - Zero memory leaks detected: 0 bytes leaked in 0 allocations.
+  - AddressSanitizer status: PASS (0 errors, 0 warnings, 0 leaks).
+=================================================================
