@@ -403,30 +403,8 @@
         <button class="btn btn-primary" id="btn-empty-load-sample">Load sample</button>
       </div>
 
-      <!-- Main SVG Graph Canvas -->
-      <svg class="transit-canvas" id="graph-svg" tabindex="0" aria-label="Transit network map">
-        <defs>
-          <!-- Subtle Drafting Dot Grid Pattern -->
-          <pattern id="dot-grid" width="24" height="24" patternUnits="userSpaceOnUse">
-            <circle cx="12" cy="12" r="1" fill="var(--color-grid-dot)" />
-          </pattern>
-        </defs>
-
-        <!-- Static Background Grid Sheet -->
-        <rect width="100%" height="100%" fill="url(#dot-grid)" class="grid-sheet-bg"/>
-
-        <!-- Pan / Zoom Transform Group -->
-        <g id="canvas-transform-group">
-          <!-- Edges Container (6px thick transit lines) -->
-          <g id="svg-edges-group"></g>
-          <!-- Dragging Link Preview -->
-          <line id="drag-link-preview" class="drag-link-preview" x1="0" y1="0" x2="0" y2="0" style="display:none;"></line>
-          <!-- Nodes Container (stations) -->
-          <g id="svg-nodes-group"></g>
-          <!-- Overlays / Badges Container -->
-          <g id="svg-overlays-group"></g>
-        </g>
-      </svg>
+      <!-- Main 2D Graph Canvas -->
+      <canvas class="transit-canvas" id="graph-canvas" tabindex="0" aria-label="Transit network map"></canvas>
 
       <!-- Floating Inspector (anchored dynamically near selected element) -->
       <div class="floating-inspector" id="floating-inspector" style="display:none;" role="dialog" aria-label="Station or line inspector">

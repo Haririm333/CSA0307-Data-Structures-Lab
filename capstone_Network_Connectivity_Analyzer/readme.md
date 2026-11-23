@@ -1,6 +1,6 @@
 # Network Connectivity Analyzer
 
-An enterprise-grade network topology analysis and vulnerability detection system built with strict **C11** for core graph algorithms, an asynchronous standard-library **Python 3.8+** HTTP server, and an interactive **Force-Directed SVG GUI** implemented in pure vanilla JavaScript.
+An enterprise-grade network topology analysis and vulnerability detection system built with strict **C11** for core graph algorithms, an asynchronous standard-library **Python 3.8+** HTTP server, and an interactive **High-DPI 2D Canvas Transit Map GUI** implemented in pure vanilla JavaScript.
 
 Developed for **CSA0307 — Data Structures Capstone Project**  
 SIMATS Engineering, Saveetha Institute of Medical and Technical Sciences.
@@ -15,7 +15,7 @@ The project strictly follows a decoupled three-tier architecture: **all algorith
 +-------------------------------------------------------------------------+
 |                         Browser Front-End (GUI)                         |
 |  - Vanilla HTML5 / CSS3 / ES6 (Zero CDN, Zero npm, 100% Offline)        |
-|  - Hand-written Force-Directed Physics Engine on SVG                    |
+|  - Hand-written Force-Directed Physics Engine on HTML5 2D Canvas        |
 |  - Drag-to-link, Pan & Zoom, Live Queue/Stack Telemetry, Dark/Light UI  |
 +-------------------------------------------------------------------------+
                                     │
@@ -157,7 +157,7 @@ All endpoints are hosted on `127.0.0.1:8080` by `server.py`:
 ### 2. Traversal Visualiser (BFS & DFS)
 - Choose between Breadth-First Search (Queue) and Depth-First Search (Stack).
 - Interactive **Play / Pause / Step / Reset** controls with real-time speed slider (150ms to 1500ms).
-- Live visualization of the **Queue** or **Stack** rendered in animated boxes beneath the SVG canvas.
+- Live visualization of the **Queue** or **Stack** rendered in animated boxes beneath the 2D canvas.
 - Right-hand telemetry table showing exact node visit order and hop levels.
 
 ### 3. Connectivity Verification
@@ -223,7 +223,7 @@ All endpoints are hosted on `127.0.0.1:8080` by `server.py`:
 ## 7. Two-Minute Presentation Script
 
 **[0:00 - 0:25] Introduction & Architecture**
-> *"Good morning respected evaluators. Today we present our Capstone project: the Network Connectivity Analyzer. Modern networks cannot afford unexpected outages. Our project models networks as graphs to audit fault tolerance, detect single points of failure, and compute optimal routes. Crucially, 100% of the graph algorithms run in a high-performance C engine written in C11. The Python middleware and modern SVG interface only visualize results computed by C."*
+> *"Good morning respected evaluators. Today we present our Capstone project: the Network Connectivity Analyzer. Modern networks cannot afford unexpected outages. Our project models networks as graphs to audit fault tolerance, detect single points of failure, and compute optimal routes. Crucially, 100% of the graph algorithms run in a high-performance C engine written in C11. The Python middleware and modern Transit Map 2D Canvas interface only visualize results computed by C."*
 
 **[0:25 - 0:55] Core Data Structures & Traversal Visualizer**
 > *"Our C backend represents the topology using an adjacency list with dynamically sorted neighbor pointers. In Module 2, we implement BFS using a circular FIFO queue and DFS using an explicit LIFO stack. As you can see on the screen, when we click Play on the BFS visualizer, our C core streams step-by-step queue states directly into the UI. You can observe nodes turning amber as they are visited, purple when placed in the queue, and green when settled, with exact hop levels displayed in the telemetry panel."*

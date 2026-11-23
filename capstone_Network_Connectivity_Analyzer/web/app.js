@@ -1,6 +1,6 @@
 /**
- * Network Connectivity Analyzer - The Transit Map Frontend Application
- * Fully offline, vanilla JavaScript, no external dependencies or frameworks.
+ * Network Connectivity Analyzer - The 2D Transit Map Frontend Application
+ * Fully offline, vanilla JavaScript, native HTML5 2D Canvas engine.
  * Strict textContent-only rendering for user-supplied data (XSS Free).
  */
 
@@ -25,7 +25,7 @@
     activeTask: 'build',  // 'build' | 'explore' | 'route' | 'faults' | 'simulation'
     drawerOpen: true,
     selectedElement: null, // { type: 'node' | 'edge', data: ... }
-    theme: localStorage.getItem('theme') || 'light',
+    theme: 'light',
 
     // Viewport transform (Pan & Zoom)
     zoom: 1,
@@ -37,6 +37,7 @@
 
     // Drag-to-link
     dragLinkSource: null,
+    dragLinkTargetPos: null,
 
     // Node dragging
     draggedNode: null,
@@ -53,6 +54,9 @@
     traversalType: 'bfs',
     traversalActive: false,
     traversalSpeed: 600,
+    currentVisitedNode: null,
+    inQueueNodes: [],     // [name, ...]
+    queuePositions: {},   // name -> position int
 
     // Shortest Path (Dijkstra)
     dijkstraTimer: null,
@@ -60,10 +64,11 @@
     dijkstraStepIndex: -1,
     dijkstraActive: false,
     shortestPathResult: null,
+    pathCumulativeCosts: {}, // name -> cost int
 
     // Weak points & simulation states
-    bridges: [],
-    articulationPoints: [],
+    bridges: [],          // [{ a, b }]
+    articulationPoints: [], // [name, ...]
     simulatedFailure: null, // { type: 'link'|'device', target: ... }
   };
 
@@ -83,6 +88,7 @@
     railItems: document.querySelectorAll('.rail-item'),
     taskDrawer: document.getElementById('task-drawer'),
     drawerTitle: document.getElementById('drawer-title'),
+    drawerContent: document.getElementById('drawer-content'),
     btnCloseDrawer: document.getElementById('btn-close-drawer'),
     taskPanels: document.querySelectorAll('.task-panel'),
 
@@ -137,12 +143,8 @@
 
     // Canvas & Toolbar
     canvasArea: document.getElementById('canvas-area'),
-    svg: document.getElementById('graph-svg'),
-    transformGroup: document.getElementById('canvas-transform-group'),
-    edgesGroup: document.getElementById('svg-edges-group'),
-    nodesGroup: document.getElementById('svg-nodes-group'),
-    overlaysGroup: document.getElementById('svg-overlays-group'),
-    dragLinkPreview: document.getElementById('drag-link-preview'),
+    canvas: document.getElementById('graph-canvas'),
+    ctx: document.getElementById('graph-canvas').getContext('2d'),
     emptyState: document.getElementById('empty-state'),
     btnEmptyLoadSample: document.getElementById('btn-empty-load-sample'),
     loadingOverlay: document.getElementById('loading-overlay'),
@@ -338,14 +340,15 @@
 
       updateStats();
       populateDropdowns();
-      renderGraph();
+      resizeCanvas();
 
       if (state.devices.length > 0) {
         el.emptyState.style.display = 'none';
         startSimulation();
-        setTimeout(autoFitGraph, 350);
+        setTimeout(autoFitGraph, 300);
       } else {
         el.emptyState.style.display = 'block';
+        render();
       }
 
       logEvent(`Loaded network: ${state.devices.length} stations, ${state.links.length} lines, ${state.components} network(s).`);
@@ -417,39 +420,10 @@
     state.dijkstraActive = false;
     state.simulatedFailure = null;
     state.shortestPathResult = null;
-
-    // Reset nodes
-    const nodes = el.nodesGroup.querySelectorAll('.graph-node');
-    nodes.forEach(n => {
-      n.className.baseVal = 'graph-node';
-      const disc = n.querySelector('.station-disc');
-      if (disc) disc.style.fill = '';
-      const ring = n.querySelector('.interchange-outer-ring');
-      if (ring) ring.remove();
-      const beacon = n.querySelector('.current-beacon-ring');
-      if (beacon) beacon.remove();
-      const badge = n.querySelector('.queue-badge-group');
-      if (badge) badge.remove();
-      const cross = n.querySelector('.failure-cross-group');
-      if (cross) cross.remove();
-    });
-
-    // Reset edges
-    const edges = el.edgesGroup.querySelectorAll('.graph-edge');
-    edges.forEach(e => {
-      e.className.baseVal = 'graph-edge';
-      e.style.stroke = '';
-      e.style.opacity = '';
-    });
-
-    const crossbars = el.edgesGroup.querySelectorAll('.bridge-crossbar');
-    crossbars.forEach(c => c.remove());
-
-    // Clear overlays
-    el.overlaysGroup.innerHTML = '';
-
-    // Re-apply component colors
-    applyComponentColors();
+    state.currentVisitedNode = null;
+    state.inQueueNodes = [];
+    state.queuePositions = {};
+    state.pathCumulativeCosts = {};
 
     el.structureItemsContainer.innerHTML = '';
     el.structureItemsContainer.appendChild(safeElem('span', {
@@ -459,25 +433,8 @@
     el.structureMetaText.textContent = 'Idle';
     el.algoIndicatorDot.style.backgroundColor = 'var(--accent-success)';
     el.algoStatusText.textContent = 'Ready';
-  }
 
-  function applyComponentColors() {
-    // Color each edge with its component color
-    state.links.forEach(l => {
-      const edge = el.edgesGroup.querySelector(`.graph-edge[data-a="${l.a}"][data-b="${l.b}"], .graph-edge[data-a="${l.b}"][data-b="${l.a}"]`);
-      if (edge) {
-        const color = state.componentColorMap[l.a] || state.componentColorMap[l.b] || getComponentColor(0);
-        edge.style.stroke = color;
-      }
-    });
-
-    // Re-check isolated devices
-    state.devices.forEach(d => {
-      const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${d.name}"]`);
-      if (nodeG && d.degree === 0) {
-        nodeG.classList.add('is-isolated');
-      }
-    });
+    render();
   }
 
   // --- Physics & Force-Directed Layout (Hand-Written) ---
@@ -491,12 +448,14 @@
   function simulationTick() {
     if (!state.simulationRunning || state.alpha < 0.005) {
       state.simulationRunning = false;
+      render();
       return;
     }
 
     const n = state.devices.length;
     if (n === 0) {
       state.simulationRunning = false;
+      render();
       return;
     }
 
@@ -549,7 +508,7 @@
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
 
-      if (!u.pinned) { u.vx += fx; u.vy += fy; }
+      if (!u.pinned) { u.vx -= fx; u.vy -= fy; }
       if (!v.pinned) { v.vx += fx; v.vy += fy; }
     }
 
@@ -568,104 +527,135 @@
     }
 
     state.alpha *= 0.985;
-    updateGraphPositions();
+    render();
     requestAnimationFrame(simulationTick);
   }
 
-  // --- SVG Transit Map Rendering ---
-  function renderGraph() {
-    el.edgesGroup.innerHTML = '';
-    el.nodesGroup.innerHTML = '';
-    el.overlaysGroup.innerHTML = '';
+  // --- HTML5 2D Canvas Engine ---
+  function resizeCanvas() {
+    const rect = el.canvasArea.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    el.canvas.width = Math.round(rect.width * dpr);
+    el.canvas.height = Math.round(rect.height * dpr);
+    render();
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function worldToScreen(wx, wy) {
+    return {
+      x: state.panX + wx * state.zoom,
+      y: state.panY + wy * state.zoom
+    };
+  }
+
+  function screenToWorld(sx, sy) {
+    return {
+      x: (sx - state.panX) / state.zoom,
+      y: (sy - state.panY) / state.zoom
+    };
+  }
+
+  function render() {
+    const ctx = el.ctx;
+    const canvas = el.canvas;
+    const rect = el.canvasArea.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    if (canvas.width === 0 || canvas.height === 0) return;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+
+    const isDark = state.theme === 'dark';
+    const bgSheet = isDark ? '#16191E' : '#F1F2EE';
+    const inkColor = isDark ? '#ECEFF4' : '#14181F';
+    const inkMuted = isDark ? '#959CA8' : '#5F6774';
+    const ruleHairline = isDark ? '#2D333D' : '#C8CBC4';
+    const ruleHalo = isDark ? '#16191E' : '#F1F2EE';
+    const gridDotColor = isDark ? '#252A32' : '#CBD0C5';
+    const accentDanger = isDark ? '#E24A42' : '#D6342C';
+    const accentFocus = isDark ? '#5A99E6' : '#1F5FBF';
+
+    // 1. Draw Drafting Sheet Background
+    ctx.fillStyle = bgSheet;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    // 2. Draw Subtle Dot Grid
+    const gridSize = 24 * state.zoom;
+    const offsetX = (state.panX % gridSize + gridSize) % gridSize;
+    const offsetY = (state.panY % gridSize + gridSize) % gridSize;
+
+    ctx.fillStyle = gridDotColor;
+    for (let x = offsetX; x < rect.width; x += gridSize) {
+      for (let y = offsetY; y < rect.height; y += gridSize) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    // 3. Apply World Transform (Pan & Zoom)
+    ctx.save();
+    ctx.translate(state.panX, state.panY);
+    ctx.scale(state.zoom, state.zoom);
 
     const nodeMap = new Map();
     state.devices.forEach(d => nodeMap.set(d.name, d));
 
-    // 1. Render Lines (Edges)
-    state.links.forEach((l) => {
+    const isRouteActive = state.shortestPathResult && state.shortestPathResult.reachable;
+    const routeEdgeSet = new Set();
+    if (isRouteActive) {
+      (state.shortestPathResult.edges || []).forEach(e => {
+        routeEdgeSet.add(`${e.a}:${e.b}`);
+        routeEdgeSet.add(`${e.b}:${e.a}`);
+      });
+    }
+
+    // --- Draw Lines (Edges) ---
+    state.links.forEach(l => {
       const u = nodeMap.get(l.a);
       const v = nodeMap.get(l.b);
       if (!u || !v) return;
 
-      const edgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      edgeG.setAttribute('class', 'graph-edge-group');
-      edgeG.dataset.a = l.a;
-      edgeG.dataset.b = l.b;
+      const isRoute = routeEdgeSet.has(`${l.a}:${l.b}`);
+      const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'link' &&
+        ((state.simulatedFailure.a === l.a && state.simulatedFailure.b === l.b) ||
+         (state.simulatedFailure.a === l.b && state.simulatedFailure.b === l.a));
+      const isBridge = state.bridges.some(b => (b.a === l.a && b.b === l.b) || (b.a === l.b && b.b === l.a));
 
-      // Line
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('class', 'graph-edge');
-      line.dataset.a = l.a;
-      line.dataset.b = l.b;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(u.x, u.y);
+      ctx.lineTo(v.x, v.y);
+      ctx.lineCap = 'round';
 
-      const compColor = state.componentColorMap[l.a] || state.componentColorMap[l.b] || getComponentColor(0);
-      line.style.stroke = compColor;
-
-      // Cost label: tabular numeral with paper halo (no grey box)
-      const costText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      costText.setAttribute('class', 'edge-cost-text');
-      costText.textContent = String(l.cost);
-
-      edgeG.appendChild(line);
-      edgeG.appendChild(costText);
-      el.edgesGroup.appendChild(edgeG);
-
-      // Edge click selection -> Floating Inspector
-      edgeG.addEventListener('click', (e) => {
-        e.stopPropagation();
-        selectElement('edge', l, e);
-      });
-    });
-
-    // 2. Render Stations (Nodes)
-    state.devices.forEach((d) => {
-      const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      nodeG.setAttribute('class', 'graph-node');
-      nodeG.dataset.name = d.name;
-
-      if (d.degree === 0) {
-        nodeG.classList.add('is-isolated');
+      if (isFailed) {
+        ctx.strokeStyle = accentDanger;
+        ctx.lineWidth = 6;
+        ctx.setLineDash([6, 6]);
+        ctx.globalAlpha = 0.35;
+      } else if (isRoute) {
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = 1.0;
+      } else if (isRouteActive) {
+        // Dim non-participating lines
+        ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
+        ctx.lineWidth = 6;
+        ctx.globalAlpha = 0.22;
+      } else if (isBridge) {
+        ctx.strokeStyle = accentDanger;
+        ctx.lineWidth = 7;
+        ctx.globalAlpha = 1.0;
+      } else {
+        ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
+        ctx.lineWidth = 6;
+        ctx.globalAlpha = 1.0;
       }
+      ctx.stroke();
+      ctx.restore();
 
-      // Station disc: white circle, 3px ink stroke
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('class', 'station-disc');
-      circle.setAttribute('r', '16');
-
-      // Station Label: 14px medium beside station with paper halo
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('class', 'station-label');
-      text.textContent = d.name;
-
-      nodeG.appendChild(circle);
-      nodeG.appendChild(text);
-      el.nodesGroup.appendChild(nodeG);
-
-      setupNodeEvents(nodeG, d);
-    });
-
-    updateGraphPositions();
-  }
-
-  function updateGraphPositions() {
-    const nodeMap = new Map();
-    state.devices.forEach(d => nodeMap.set(d.name, d));
-
-    // Update lines and costs
-    const edgeGroups = el.edgesGroup.querySelectorAll('.graph-edge-group');
-    edgeGroups.forEach(g => {
-      const a = g.dataset.a;
-      const b = g.dataset.b;
-      const u = nodeMap.get(a);
-      const v = nodeMap.get(b);
-      if (!u || !v) return;
-
-      const line = g.querySelector('line.graph-edge');
-      line.setAttribute('x1', u.x);
-      line.setAttribute('y1', u.y);
-      line.setAttribute('x2', v.x);
-      line.setAttribute('y2', v.y);
-
+      // Draw Single Track Bridge Crossbar Tick
       const midX = (u.x + v.x) / 2;
       const midY = (u.y + v.y) / 2;
       const dx = v.x - u.x;
@@ -674,211 +664,367 @@
       const nx = -dy / len;
       const ny = dx / len;
 
-      const costText = g.querySelector('.edge-cost-text');
-      if (costText) {
-        costText.setAttribute('x', midX - nx * 10);
-        costText.setAttribute('y', midY - ny * 10);
-      }
-
-      // Update bridge crossbar if present
-      const crossbar = g.querySelector('.bridge-crossbar');
-      if (crossbar) {
+      if (isBridge && !isFailed) {
+        ctx.save();
+        ctx.beginPath();
         const tickLen = 13;
-        crossbar.setAttribute('x1', midX - nx * tickLen);
-        crossbar.setAttribute('y1', midY - ny * tickLen);
-        crossbar.setAttribute('x2', midX + nx * tickLen);
-        crossbar.setAttribute('y2', midY + ny * tickLen);
+        ctx.moveTo(midX - nx * tickLen, midY - ny * tickLen);
+        ctx.lineTo(midX + nx * tickLen, midY + ny * tickLen);
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.restore();
       }
+
+      // Draw Tabular Cost Numeral with Paper Halo
+      const costX = midX - nx * 11;
+      const costY = midY - ny * 11;
+      ctx.save();
+      ctx.font = '600 12px Archivo, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+
+      // Halo
+      ctx.strokeStyle = ruleHalo;
+      ctx.lineWidth = 4;
+      ctx.strokeText(String(l.cost), costX, costY);
+
+      // Ink Text
+      ctx.fillStyle = inkColor;
+      ctx.fillText(String(l.cost), costX, costY);
+      ctx.restore();
     });
 
-    // Update stations
-    const nodeGroups = el.nodesGroup.querySelectorAll('.graph-node');
-    nodeGroups.forEach(g => {
-      const name = g.dataset.name;
-      const d = nodeMap.get(name);
-      if (!d) return;
+    // --- Draw Stations (Nodes) ---
+    const routeNodeSet = new Set(isRouteActive ? (state.shortestPathResult.path || []) : []);
 
-      const circle = g.querySelector('.station-disc');
-      circle.setAttribute('cx', d.x);
-      circle.setAttribute('cy', d.y);
+    state.devices.forEach(d => {
+      const isSelected = state.selectedElement && state.selectedElement.type === 'node' && state.selectedElement.data.name === d.name;
+      const isCritical = state.articulationPoints.includes(d.name);
+      const isIsolated = d.degree === 0;
+      const isVisited = (state.traversalActive && state.traversalSteps.slice(0, state.traversalStepIndex + 1).some(s => s.visit === d.name)) ||
+                        routeNodeSet.has(d.name);
+      const isCurrent = state.currentVisitedNode === d.name;
+      const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'device' && state.simulatedFailure.name === d.name;
 
-      const text = g.querySelector('.station-label');
-      text.setAttribute('x', d.x + 20);
-      text.setAttribute('y', d.y + 5);
-
-      const outerRing = g.querySelector('.interchange-outer-ring');
-      if (outerRing) {
-        outerRing.setAttribute('cx', d.x);
-        outerRing.setAttribute('cy', d.y);
+      // 1. Interchange Outer Ring (Cut Vertex)
+      if (isCritical) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 24, 0, 2 * Math.PI);
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.restore();
       }
 
-      const beacon = g.querySelector('.current-beacon-ring');
-      if (beacon) {
-        beacon.setAttribute('cx', d.x);
-        beacon.setAttribute('cy', d.y);
+      // 2. Traversal Active Beacon Ring
+      if (isCurrent) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 22, 0, 2 * Math.PI);
+        ctx.strokeStyle = accentFocus;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
       }
 
-      const badgeGroup = g.querySelector('.queue-badge-group');
-      if (badgeGroup) {
-        const bCircle = badgeGroup.querySelector('circle');
-        const bText = badgeGroup.querySelector('text');
-        if (bCircle) {
-          bCircle.setAttribute('cx', d.x + 12);
-          bCircle.setAttribute('cy', d.y - 12);
-        }
-        if (bText) {
-          bText.setAttribute('x', d.x + 12);
-          bText.setAttribute('y', d.y - 12);
-        }
+      // 3. Station Disc (White circle with ink outline, or solid ink if visited)
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, 16, 0, 2 * Math.PI);
+
+      if (isFailed) {
+        ctx.fillStyle = bgSheet;
+        ctx.strokeStyle = accentDanger;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      } else if (isVisited) {
+        ctx.fillStyle = inkColor;
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 3;
+        ctx.fill();
+        ctx.stroke();
+      } else if (isIsolated) {
+        ctx.fillStyle = 'transparent';
+        ctx.strokeStyle = inkMuted;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = isSelected ? accentFocus : inkColor;
+        ctx.lineWidth = 3;
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 4. Closed Station Cross Mark
+      if (isFailed) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(d.x - 9, d.y - 9);
+        ctx.lineTo(d.x + 9, d.y + 9);
+        ctx.moveTo(d.x - 9, d.y + 9);
+        ctx.lineTo(d.x + 9, d.y - 9);
+        ctx.strokeStyle = accentDanger;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        ctx.restore();
       }
 
-      const crossGroup = g.querySelector('.failure-cross-group');
-      if (crossGroup) {
-        const l1 = crossGroup.querySelector('.l1');
-        const l2 = crossGroup.querySelector('.l2');
-        if (l1 && l2) {
-          l1.setAttribute('x1', d.x - 9);
-          l1.setAttribute('y1', d.y - 9);
-          l1.setAttribute('x2', d.x + 9);
-          l1.setAttribute('y2', d.y + 9);
-          l2.setAttribute('x1', d.x - 9);
-          l2.setAttribute('y1', d.y + 9);
-          l2.setAttribute('x2', d.x + 9);
-          l2.setAttribute('y2', d.y - 9);
-        }
+      // 5. In-Queue Position Badge
+      if (state.queuePositions[d.name] && !isVisited) {
+        const badgeX = d.x + 13;
+        const badgeY = d.y - 13;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, 7.5, 0, 2 * Math.PI);
+        ctx.fillStyle = bgSheet;
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 1.5;
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = '700 10px Archivo, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = inkColor;
+        ctx.fillText(String(state.queuePositions[d.name]), badgeX, badgeY);
+        ctx.restore();
       }
+
+      // 6. Cumulative Route Distance Badge
+      if (isRouteActive && state.pathCumulativeCosts[d.name] !== undefined) {
+        const badgeW = 28;
+        const badgeH = 15;
+        const bx = d.x - badgeW / 2;
+        const by = d.y + 18;
+
+        ctx.save();
+        ctx.fillStyle = inkColor;
+        ctx.beginPath();
+        ctx.roundRect ? ctx.roundRect(bx, by, badgeW, badgeH, 3) : ctx.rect(bx, by, badgeW, badgeH);
+        ctx.fill();
+
+        ctx.font = '700 11px Archivo, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = isDark ? '#14181F' : '#FFFFFF';
+        ctx.fillText(String(state.pathCumulativeCosts[d.name]), d.x, by + badgeH / 2);
+        ctx.restore();
+      }
+
+      // 7. Station Label with Paper Halo
+      ctx.save();
+      ctx.font = '500 14px Archivo, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.lineJoin = 'round';
+
+      const labelX = d.x + 21;
+      const labelY = d.y + 5;
+
+      // Halo
+      ctx.strokeStyle = ruleHalo;
+      ctx.lineWidth = 4;
+      ctx.strokeText(d.name, labelX, labelY);
+
+      // Ink Text
+      ctx.fillStyle = isIsolated ? inkMuted : inkColor;
+      ctx.fillText(d.name, labelX, labelY);
+      ctx.restore();
     });
 
-    // Update overlays (Stop cost chips along shortest route)
-    updateOverlays();
+    // --- Drag-to-Link Preview Line ---
+    if (state.dragLinkSource && state.dragLinkTargetPos) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(state.dragLinkSource.x, state.dragLinkSource.y);
+      ctx.lineTo(state.dragLinkTargetPos.x, state.dragLinkTargetPos.y);
+      ctx.strokeStyle = accentFocus;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([4, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-    // If inspector is open, update its screen anchor position
+    ctx.restore(); // Restore world transform
+    ctx.restore(); // Restore DPI transform
+
+    // Sync floating inspector anchor if active
     if (state.selectedElement) {
       updateInspectorPosition();
     }
   }
 
-  function updateOverlays() {
-    if (!state.shortestPathResult || !state.shortestPathResult.reachable) return;
-    const path = state.shortestPathResult.path || [];
+  // --- Auto-Fit Layout ---
+  function autoFitGraph() {
+    if (state.devices.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    state.devices.forEach(d => {
+      if (d.x < minX) minX = d.x;
+      if (d.x > maxX) maxX = d.x;
+      if (d.y < minY) minY = d.y;
+      if (d.y > maxY) maxY = d.y;
+    });
+
+    const pad = 100;
+    const bboxW = Math.max(140, (maxX - minX) + pad * 2);
+    const bboxH = Math.max(140, (maxY - minY) + pad * 2);
+    const rect = el.canvasArea.getBoundingClientRect();
+    const svgW = rect.width || 800;
+    const svgH = rect.height || 600;
+
+    const scale = Math.min(1.5, Math.max(0.65, Math.min(svgW / bboxW, svgH / bboxH)));
+    state.zoom = scale;
+    state.panX = svgW / 2 - ((minX + maxX) / 2) * scale;
+    state.panY = svgH / 2 - ((minY + maxY) / 2) * scale;
+    render();
+  }
+
+  // --- Hit Testing for 2D Canvas ---
+  function findNodeAt(worldX, worldY) {
+    for (let i = state.devices.length - 1; i >= 0; i--) {
+      const d = state.devices[i];
+      if (Math.hypot(d.x - worldX, d.y - worldY) <= 20) {
+        return d;
+      }
+    }
+    return null;
+  }
+
+  function findEdgeAt(worldX, worldY) {
     const nodeMap = new Map();
     state.devices.forEach(d => nodeMap.set(d.name, d));
 
-    const chips = el.overlaysGroup.querySelectorAll('.stop-chip-overlay');
-    chips.forEach(chip => {
-      const name = chip.dataset.node;
-      const d = nodeMap.get(name);
-      if (!d) return;
-      const bg = chip.querySelector('rect');
-      const txt = chip.querySelector('text');
-      bg.setAttribute('x', d.x - 14);
-      bg.setAttribute('y', d.y + 17);
-      txt.setAttribute('x', d.x);
-      txt.setAttribute('y', d.y + 25);
-    });
+    for (let i = state.links.length - 1; i >= 0; i--) {
+      const l = state.links[i];
+      const u = nodeMap.get(l.a);
+      const v = nodeMap.get(l.b);
+      if (!u || !v) continue;
+
+      const dist = pointToSegmentDistance(worldX, worldY, u.x, u.y, v.x, v.y);
+      if (dist <= 10) {
+        return l;
+      }
+    }
+    return null;
   }
 
-  // --- Node Dragging & Drag-to-Link ---
-  function setupNodeEvents(nodeG, device) {
-    nodeG.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      e.stopPropagation();
+  function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    return Math.hypot(px - projX, py - projY);
+  }
 
-      if (e.shiftKey) {
-        // Shift + Drag for Drag-to-Link
-        state.dragLinkSource = device;
-        el.dragLinkPreview.style.display = 'block';
-        el.dragLinkPreview.setAttribute('x1', device.x);
-        el.dragLinkPreview.setAttribute('y1', device.y);
-        el.dragLinkPreview.setAttribute('x2', device.x);
-        el.dragLinkPreview.setAttribute('y2', device.y);
+  // --- Canvas Mouse & Gesture Handling ---
+  function setupCanvasEvents() {
+    el.canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const rect = el.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const world = screenToWorld(sx, sy);
+
+      const clickedNode = findNodeAt(world.x, world.y);
+      if (clickedNode) {
+        if (e.shiftKey) {
+          // Shift + Drag for Drag-to-Link
+          state.dragLinkSource = clickedNode;
+          state.dragLinkTargetPos = { x: world.x, y: world.y };
+          render();
+          return;
+        }
+
+        state.draggedNode = clickedNode;
+        state.dragMoved = false;
+        clickedNode.pinned = true;
         return;
       }
 
-      state.draggedNode = device;
-      state.dragMoved = false;
-      device.pinned = true;
-    });
-
-    nodeG.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!state.dragMoved) {
-        selectElement('node', device, e);
+      const clickedEdge = findEdgeAt(world.x, world.y);
+      if (clickedEdge) {
+        selectElement('edge', clickedEdge);
+        return;
       }
-    });
-  }
 
-  // --- Canvas Interaction (Pan, Zoom, Add Node, Delete) ---
-  function setupCanvasEvents() {
-    el.svg.addEventListener('mousedown', (e) => {
-      if (e.button === 0 && (e.target === el.svg || e.target.classList.contains('grid-sheet-bg'))) {
-        state.isPanning = true;
-        state.startPanX = e.clientX - state.panX;
-        state.startPanY = e.clientY - state.panY;
-        deselectElement();
-      }
+      // Pan canvas
+      state.isPanning = true;
+      state.startPanX = e.clientX - state.panX;
+      state.startPanY = e.clientY - state.panY;
+      deselectElement();
     });
 
     window.addEventListener('mousemove', (e) => {
+      const rect = el.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const world = screenToWorld(sx, sy);
+
       if (state.isPanning) {
         state.panX = e.clientX - state.startPanX;
         state.panY = e.clientY - state.startPanY;
-        applyTransform();
+        render();
         return;
       }
 
       if (state.draggedNode) {
         state.dragMoved = true;
-        const rect = el.svg.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - state.panX) / state.zoom;
-        const mouseY = (e.clientY - rect.top - state.panY) / state.zoom;
-        state.draggedNode.x = mouseX;
-        state.draggedNode.y = mouseY;
+        state.draggedNode.x = world.x;
+        state.draggedNode.y = world.y;
         state.draggedNode.vx = 0;
         state.draggedNode.vy = 0;
-        updateGraphPositions();
+        render();
         return;
       }
 
       if (state.dragLinkSource) {
-        const rect = el.svg.getBoundingClientRect();
-        const mouseX = (e.clientX - rect.left - state.panX) / state.zoom;
-        const mouseY = (e.clientY - rect.top - state.panY) / state.zoom;
-        el.dragLinkPreview.setAttribute('x2', mouseX);
-        el.dragLinkPreview.setAttribute('y2', mouseY);
+        state.dragLinkTargetPos = { x: world.x, y: world.y };
+        render();
       }
     });
 
-    window.addEventListener('mouseup', () => {
+    window.addEventListener('mouseup', (e) => {
+      const rect = el.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const world = screenToWorld(sx, sy);
+
       state.isPanning = false;
 
       if (state.draggedNode) {
+        if (!state.dragMoved) {
+          selectElement('node', state.draggedNode);
+        }
         state.draggedNode = null;
       }
 
       if (state.dragLinkSource) {
-        el.dragLinkPreview.style.display = 'none';
-        const rect = el.svg.getBoundingClientRect();
-        const mouseX = parseFloat(el.dragLinkPreview.getAttribute('x2'));
-        const mouseY = parseFloat(el.dragLinkPreview.getAttribute('y2'));
-
-        const targetNode = state.devices.find(d => {
-          if (d.name === state.dragLinkSource.name) return false;
-          return Math.hypot(d.x - mouseX, d.y - mouseY) <= 24;
-        });
-
-        if (targetNode) {
+        const targetNode = findNodeAt(world.x, world.y);
+        if (targetNode && targetNode.name !== state.dragLinkSource.name) {
           promptAddLink(state.dragLinkSource.name, targetNode.name);
         }
         state.dragLinkSource = null;
+        state.dragLinkTargetPos = null;
+        render();
       }
     });
 
-    // Zoom via Mouse Wheel
-    el.svg.addEventListener('wheel', (e) => {
+    // Zoom via Wheel
+    el.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       const zoomFactor = e.deltaY < 0 ? 1.12 : 0.89;
-      const rect = el.svg.getBoundingClientRect();
+      const rect = el.canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
@@ -886,16 +1032,21 @@
       state.panX = mouseX - (mouseX - state.panX) * (newZoom / state.zoom);
       state.panY = mouseY - (mouseY - state.panY) * (newZoom / state.zoom);
       state.zoom = newZoom;
-      applyTransform();
+      render();
     });
 
-    // Double-click to add device
-    el.svg.addEventListener('dblclick', (e) => {
-      if (e.target !== el.svg && !e.target.classList.contains('grid-sheet-bg')) return;
-      promptAddDevice();
+    // Double-click to add station
+    el.canvas.addEventListener('dblclick', (e) => {
+      const rect = el.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const world = screenToWorld(sx, sy);
+      if (!findNodeAt(world.x, world.y)) {
+        promptAddDevice(world.x, world.y);
+      }
     });
 
-    // Keyboard Delete / Backspace
+    // Delete / Backspace key
     window.addEventListener('keydown', (e) => {
       if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedElement) {
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
@@ -905,18 +1056,8 @@
     });
   }
 
-  function applyTransform() {
-    el.transformGroup.setAttribute(
-      'transform',
-      `translate(${state.panX}, ${state.panY}) scale(${state.zoom})`
-    );
-    if (state.selectedElement) {
-      updateInspectorPosition();
-    }
-  }
-
   // --- Prompts for Canvas Gestures ---
-  async function promptAddDevice() {
+  async function promptAddDevice(wx, wy) {
     const defaultName = `Station_${state.devices.length + 1}`;
     const name = window.prompt('Enter new station name (letters, numbers, _, -):', defaultName);
     if (!name) return;
@@ -928,6 +1069,16 @@
       });
       showToast(`Station '${name.trim()}' added`, 'success');
       await loadNetwork();
+
+      if (wx !== undefined && wy !== undefined) {
+        const newNode = state.devices.find(d => d.name === name.trim());
+        if (newNode) {
+          newNode.x = wx;
+          newNode.y = wy;
+          newNode.pinned = true;
+          render();
+        }
+      }
     } catch (err) { }
   }
 
@@ -958,12 +1109,6 @@
     el.floatingInspector.style.display = 'block';
 
     if (type === 'node') {
-      const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${data.name}"]`);
-      if (nodeG) {
-        const disc = nodeG.querySelector('.station-disc');
-        if (disc) disc.style.stroke = 'var(--accent-focus)';
-      }
-
       el.inspectType.textContent = 'Station';
       el.inspectDetails.innerHTML = '';
       el.inspectDetails.appendChild(safeElem('div', { className: 'station-name', text: data.name }));
@@ -978,9 +1123,6 @@
       el.btnInspectorRemove.textContent = 'Remove station';
 
     } else if (type === 'edge') {
-      const edge = el.edgesGroup.querySelector(`.graph-edge[data-a="${data.a}"][data-b="${data.b}"], .graph-edge[data-a="${data.b}"][data-b="${data.a}"]`);
-      if (edge) edge.style.stroke = 'var(--accent-focus)';
-
       const isBridge = state.bridges.some(b => (b.a === data.a && b.b === data.b) || (b.a === data.b && b.b === data.a));
 
       el.inspectType.textContent = 'Line';
@@ -998,6 +1140,7 @@
     }
 
     updateInspectorPosition();
+    render();
   }
 
   function updateInspectorPosition() {
@@ -1018,9 +1161,9 @@
       worldY = (u.y + v.y) / 2;
     }
 
-    // Convert world to screen space inside canvas container
-    const screenX = state.panX + worldX * state.zoom + 22;
-    const screenY = state.panY + worldY * state.zoom - 20;
+    const scr = worldToScreen(worldX, worldY);
+    const screenX = scr.x + 24;
+    const screenY = scr.y - 20;
 
     const areaRect = el.canvasArea.getBoundingClientRect();
     const inspW = 210;
@@ -1036,16 +1179,7 @@
   function deselectElement() {
     state.selectedElement = null;
     el.floatingInspector.style.display = 'none';
-
-    // Reset node strokes
-    const nodes = el.nodesGroup.querySelectorAll('.graph-node');
-    nodes.forEach(n => {
-      const disc = n.querySelector('.station-disc');
-      if (disc) disc.style.stroke = '';
-    });
-
-    // Reset edge strokes
-    applyComponentColors();
+    render();
   }
 
   async function deleteSelectedElement() {
@@ -1086,13 +1220,13 @@
 
   function setActiveTask(taskId) {
     if (state.activeTask === taskId && state.drawerOpen) {
-      // Toggle closed if clicking active rail item
       setDrawerOpen(false);
       return;
     }
 
     state.activeTask = taskId;
     setDrawerOpen(true);
+    el.drawerContent.scrollTop = 0;
 
     el.railItems.forEach(item => {
       if (item.dataset.task === taskId) {
@@ -1121,6 +1255,7 @@
       el.taskDrawer.classList.add('closed');
       el.railItems.forEach(item => item.classList.remove('active'));
     }
+    setTimeout(resizeCanvas, 220);
   }
 
   el.railItems.forEach(item => {
@@ -1138,6 +1273,7 @@
   el.btnDockToggle.addEventListener('click', () => {
     const isCollapsed = el.bottomDock.classList.toggle('collapsed');
     document.body.classList.toggle('dock-collapsed', isCollapsed);
+    setTimeout(resizeCanvas, 220);
   });
 
   // --- Transit Legend Toggle ---
@@ -1307,46 +1443,13 @@
     state.traversalStepIndex = index;
     const step = state.traversalSteps[index];
 
-    // Reset previous current beacon rings
-    el.nodesGroup.querySelectorAll('.graph-node').forEach(n => {
-      const beacon = n.querySelector('.current-beacon-ring');
-      if (beacon) beacon.remove();
-    });
-
-    // Mark current node
-    const currNode = el.nodesGroup.querySelector(`.graph-node[data-name="${step.visit}"]`);
-    if (currNode) {
-      currNode.classList.add('is-visited');
-
-      // Add accent beacon ring to current station
-      const beacon = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      beacon.setAttribute('class', 'current-beacon-ring');
-      beacon.setAttribute('cx', currNode.querySelector('.station-disc').getAttribute('cx'));
-      beacon.setAttribute('cy', currNode.querySelector('.station-disc').getAttribute('cy'));
-      beacon.setAttribute('r', '20');
-      currNode.appendChild(beacon);
-    }
-
-    // Mark nodes waiting in queue / stack with order badge
+    state.currentVisitedNode = step.visit;
     const queueOrStack = state.traversalType === 'bfs' ? (step.queue || []) : (step.stack || []);
+    state.inQueueNodes = queueOrStack;
+
+    state.queuePositions = {};
     queueOrStack.forEach((name, pos) => {
-      const qNode = el.nodesGroup.querySelector(`.graph-node[data-name="${name}"]`);
-      if (qNode && !qNode.classList.contains('is-visited')) {
-        let badgeGroup = qNode.querySelector('.queue-badge-group');
-        if (!badgeGroup) {
-          badgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-          badgeGroup.setAttribute('class', 'queue-badge-group');
-          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-          circle.setAttribute('class', 'queue-pos-badge');
-          circle.setAttribute('r', '7');
-          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-          text.setAttribute('class', 'queue-pos-text');
-          badgeGroup.appendChild(circle);
-          badgeGroup.appendChild(text);
-          qNode.appendChild(badgeGroup);
-        }
-        badgeGroup.querySelector('text').textContent = String(pos + 1);
-      }
+      state.queuePositions[name] = pos + 1;
     });
 
     // Render Ticket-style Queue/Stack Row in Dock
@@ -1370,6 +1473,7 @@
       });
     }
 
+    render();
     logEvent(`${state.traversalType.toUpperCase()} step ${index + 1}: Visited ${step.visit}${step.from ? ` from ${step.from}` : ' (origin)'}`);
   }
 
@@ -1589,11 +1693,8 @@
         if (state.dijkstraStepIndex + 1 < state.dijkstraSteps.length) {
           state.dijkstraStepIndex++;
           const step = state.dijkstraSteps[state.dijkstraStepIndex];
-
-          const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${step.settled}"]`);
-          if (nodeG) {
-            nodeG.classList.add('is-visited');
-          }
+          state.currentVisitedNode = step.settled;
+          render();
           state.dijkstraTimer = setTimeout(tick, state.traversalSpeed);
         } else {
           renderShortestPathResult(src, dst, res, false);
@@ -1622,6 +1723,7 @@
         text: `Destination '${dst}' is unreachable from '${src}'. No line exists between their networks.`
       }));
       logEvent(`Route ${src} to ${dst}: UNREACHABLE`, 'warn');
+      render();
       return;
     }
 
@@ -1629,61 +1731,19 @@
     el.algoIndicatorDot.style.backgroundColor = 'var(--accent-success)';
     el.algoStatusText.textContent = 'Route found';
 
-    // Dim all lines to 22% opacity
-    el.edgesGroup.querySelectorAll('.graph-edge').forEach(e => e.classList.add('dimmed'));
-
-    // Highlight route edges in bold solid ink
-    (res.edges || []).forEach(e => {
-      const edge = el.edgesGroup.querySelector(`.graph-edge[data-a="${e.a}"][data-b="${e.b}"], .graph-edge[data-a="${e.b}"][data-b="${e.a}"]`);
-      if (edge) {
-        edge.classList.remove('dimmed');
-        edge.classList.add('is-route');
-      }
-    });
-
-    // Render cumulative cost stop markers along route
-    el.overlaysGroup.innerHTML = '';
+    // Calculate cumulative costs at each stop
     const path = res.path || [];
     let cumCost = 0;
-    const costMap = new Map();
-    costMap.set(src, 0);
+    state.pathCumulativeCosts = {};
+    state.pathCumulativeCosts[src] = 0;
 
     for (let i = 0; i < path.length - 1; i++) {
       const u = path[i];
       const v = path[i + 1];
       const edge = (res.edges || []).find(e => (e.a === u && e.b === v) || (e.a === v && e.b === u));
       cumCost += edge ? edge.cost : 0;
-      costMap.set(v, cumCost);
+      state.pathCumulativeCosts[v] = cumCost;
     }
-
-    path.forEach(name => {
-      const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${name}"]`);
-      if (nodeG) nodeG.classList.add('is-visited');
-
-      const d = state.devices.find(dev => dev.name === name);
-      if (d) {
-        const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        overlay.setAttribute('class', 'stop-chip-overlay');
-        overlay.dataset.node = name;
-
-        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        bg.setAttribute('class', 'stop-cost-badge-bg');
-        bg.setAttribute('width', '28');
-        bg.setAttribute('height', '15');
-        bg.setAttribute('x', d.x - 14);
-        bg.setAttribute('y', d.y + 17);
-
-        const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        txt.setAttribute('class', 'stop-cost-badge-text');
-        txt.setAttribute('x', d.x);
-        txt.setAttribute('y', d.y + 25);
-        txt.textContent = String(costMap.get(name) || 0);
-
-        overlay.appendChild(bg);
-        overlay.appendChild(txt);
-        el.overlaysGroup.appendChild(overlay);
-      }
-    });
 
     // Show Hero Total Cost (28px) in Dock
     el.algoDetailsBody.innerHTML = '';
@@ -1698,7 +1758,7 @@
     path.forEach((name, i) => {
       chainBox.appendChild(safeElem('div', { className: 'route-stop-chip' }, [
         safeElem('span', { text: name }),
-        safeElem('span', { className: 'route-stop-cost', text: `(${costMap.get(name)})` })
+        safeElem('span', { className: 'route-stop-cost', text: `(${state.pathCumulativeCosts[name]})` })
       ]));
       if (i < path.length - 1) {
         chainBox.appendChild(safeElem('span', { style: 'color:var(--color-ink-subtle);', text: '→' }));
@@ -1706,6 +1766,7 @@
     });
     el.algoDetailsBody.appendChild(chainBox);
 
+    render();
     logEvent(`Route ${src} to ${dst}: ${path.join(' → ')} (Total cost: ${res.cost})`, 'success');
   }
 
@@ -1717,37 +1778,6 @@
 
       state.bridges = res.bridges || [];
       state.articulationPoints = res.articulation || [];
-
-      // Highlight single track bridges with perpendicular crossbar ticks
-      state.bridges.forEach(b => {
-        const edgeGroup = el.edgesGroup.querySelector(`.graph-edge-group[data-a="${b.a}"][data-b="${b.b}"], .graph-edge-group[data-a="${b.b}"][data-b="${b.a}"]`);
-        if (edgeGroup) {
-          const line = edgeGroup.querySelector('line.graph-edge');
-          if (line) line.classList.add('is-bridge');
-
-          let crossbar = edgeGroup.querySelector('.bridge-crossbar');
-          if (!crossbar) {
-            crossbar = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            crossbar.setAttribute('class', 'bridge-crossbar');
-            edgeGroup.appendChild(crossbar);
-          }
-        }
-      });
-
-      // Highlight critical stations (interchange double rings)
-      state.articulationPoints.forEach(name => {
-        const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${name}"]`);
-        if (nodeG) {
-          let ring = nodeG.querySelector('.interchange-outer-ring');
-          if (!ring) {
-            ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            ring.setAttribute('class', 'interchange-outer-ring');
-            ring.setAttribute('r', '24');
-            nodeG.insertBefore(ring, nodeG.firstChild);
-          }
-        }
-      });
-      updateGraphPositions();
 
       el.tabResults.click();
       el.algoTitle.textContent = 'Weak points detected';
@@ -1799,6 +1829,7 @@
       }
       el.algoDetailsBody.appendChild(apRow);
 
+      render();
       logEvent(`Found ${state.bridges.length} bridge(s) and ${state.articulationPoints.length} critical station(s).`, 'warn');
     } catch (err) { }
   });
@@ -1807,11 +1838,12 @@
     const node = state.devices.find(d => d.name === name);
     if (!node) return;
     selectElement('node', node);
-    const width = el.svg.clientWidth || 800;
-    const height = el.svg.clientHeight || 600;
+    const rect = el.canvasArea.getBoundingClientRect();
+    const width = rect.width || 800;
+    const height = rect.height || 600;
     state.panX = width / 2 - node.x * state.zoom;
     state.panY = height / 2 - node.y * state.zoom;
-    applyTransform();
+    render();
   }
 
   function focusLink(a, b) {
@@ -1823,11 +1855,12 @@
     if (u && v) {
       const midX = (u.x + v.x) / 2;
       const midY = (u.y + v.y) / 2;
-      const width = el.svg.clientWidth || 800;
-      const height = el.svg.clientHeight || 600;
+      const rect = el.canvasArea.getBoundingClientRect();
+      const width = rect.width || 800;
+      const height = rect.height || 600;
       state.panX = width / 2 - midX * state.zoom;
       state.panY = height / 2 - midY * state.zoom;
-      applyTransform();
+      render();
     }
   }
 
@@ -1875,44 +1908,14 @@
       resetHighlights();
       state.simulatedFailure = payload;
 
-      // Mark target as closed
-      if (simType === 'link') {
-        const edge = el.edgesGroup.querySelector(`.graph-edge[data-a="${payload.a}"][data-b="${payload.b}"], .graph-edge[data-a="${payload.b}"][data-b="${payload.a}"]`);
-        if (edge) edge.classList.add('is-failed');
-      } else {
-        const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${payload.name}"]`);
-        if (nodeG) {
-          nodeG.classList.add('is-failed');
-          let cross = nodeG.querySelector('.failure-cross-group');
-          if (!cross) {
-            cross = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            cross.setAttribute('class', 'failure-cross-group');
-            const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            l1.setAttribute('class', 'failure-cross l1');
-            const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-            l2.setAttribute('class', 'failure-cross l2');
-            cross.appendChild(l1);
-            cross.appendChild(l2);
-            nodeG.appendChild(cross);
-          }
-        }
-      }
-
       // Re-color newly separated subnets with distinct line colors
       const groups = res.disconnected || [];
       groups.forEach((group, idx) => {
         const color = getComponentColor(idx);
         group.forEach(name => {
           state.componentColorMap[name] = color;
-          const nodeG = el.nodesGroup.querySelector(`.graph-node[data-name="${name}"]`);
-          if (nodeG && (!payload.name || name !== payload.name)) {
-            const disc = nodeG.querySelector('.station-disc');
-            if (disc) disc.style.stroke = color;
-          }
         });
       });
-      applyComponentColors();
-      updateGraphPositions();
 
       el.tabResults.click();
       el.algoTitle.textContent = `Simulation: ${simType === 'link' ? `Line ${payload.a} to ${payload.b}` : `Station ${payload.name}`}`;
@@ -1940,6 +1943,7 @@
       });
       el.algoDetailsBody.appendChild(subnetList);
 
+      render();
       logEvent(`Failure simulation complete: networks ${res.componentsBefore} → ${res.componentsAfter}.`, 'warn');
     } catch (err) { }
   });
@@ -1994,12 +1998,13 @@
 
   // --- Canvas Floating Tools ---
   el.btnRelayout.addEventListener('click', () => {
-    const width = el.svg.clientWidth || 800;
-    const height = el.svg.clientHeight || 600;
+    const rect = el.canvasArea.getBoundingClientRect();
+    const width = rect.width || 800;
+    const height = rect.height || 600;
     state.devices.forEach((d, i) => {
       d.pinned = false;
       const angle = (i / Math.max(1, state.devices.length)) * 2 * Math.PI;
-      const r = Math.min(width, height) * 0.32;
+      const r = Math.min(width, height) * 0.35;
       d.x = width / 2 + r * Math.cos(angle) + (Math.random() - 0.5) * 40;
       d.y = height / 2 + r * Math.sin(angle) + (Math.random() - 0.5) * 40;
       d.vx = 0;
@@ -2009,47 +2014,23 @@
     showToast('Re-laying out network', 'info');
   });
 
-  function autoFitGraph() {
-    if (state.devices.length === 0) return;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    state.devices.forEach(d => {
-      if (d.x < minX) minX = d.x;
-      if (d.x > maxX) maxX = d.x;
-      if (d.y < minY) minY = d.y;
-      if (d.y > maxY) maxY = d.y;
-    });
-
-    const pad = 100;
-    const bboxW = Math.max(140, (maxX - minX) + pad * 2);
-    const bboxH = Math.max(140, (maxY - minY) + pad * 2);
-    const rect = el.canvasArea.getBoundingClientRect();
-    const svgW = rect.width || 800;
-    const svgH = rect.height || 600;
-
-    const scale = Math.min(1.5, Math.max(0.65, Math.min(svgW / bboxW, svgH / bboxH)));
-    state.zoom = scale;
-    state.panX = svgW / 2 - ((minX + maxX) / 2) * scale;
-    state.panY = svgH / 2 - ((minY + maxY) / 2) * scale;
-    applyTransform();
-  }
-
   el.btnFitScreen.addEventListener('click', autoFitGraph);
 
   el.btnZoomIn.addEventListener('click', () => {
     state.zoom = Math.min(4.0, state.zoom * 1.25);
-    applyTransform();
+    render();
   });
 
   el.btnZoomOut.addEventListener('click', () => {
     state.zoom = Math.max(0.2, state.zoom * 0.8);
-    applyTransform();
+    render();
   });
 
   el.btnResetView.addEventListener('click', () => {
     state.zoom = 1;
     state.panX = 0;
     state.panY = 0;
-    applyTransform();
+    render();
   });
 
   // --- Bottom Dock Tabs ---
@@ -2085,7 +2066,6 @@
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
 
-    // Update Sun / Moon Icon
     if (theme === 'dark') {
       el.themeIcon.innerHTML = `
         <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -2106,7 +2086,6 @@
         </svg>`;
     }
 
-    // Refresh component colors on lines and nodes
     if (state.componentList.length > 0) {
       state.componentColorMap = {};
       state.componentList.forEach((group, idx) => {
@@ -2115,8 +2094,9 @@
           state.componentColorMap[name] = color;
         });
       });
-      applyComponentColors();
     }
+
+    render();
   }
 
   el.btnThemeToggle.addEventListener('click', () => {
@@ -2125,11 +2105,10 @@
 
   // --- App Initialization ---
   function init() {
-    // Light theme is the primary default
     applyTheme('light');
     setupCanvasEvents();
     loadNetwork();
-    logEvent('Network Connectivity Analyzer initialized.', 'info');
+    logEvent('Network Connectivity Analyzer 2D initialized.', 'info');
   }
 
   window.addEventListener('DOMContentLoaded', init);
