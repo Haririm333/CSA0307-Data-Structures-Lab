@@ -610,6 +610,9 @@ class NetworkApiHandler(http.server.BaseHTTPRequestHandler):
             ".png": "image/png",
             ".ico": "image/x-icon",
             ".txt": "text/plain; charset=utf-8",
+            ".woff2": "font/woff2",
+            ".woff": "font/woff",
+            ".ttf": "font/ttf",
         }
         ext = os.path.splitext(file_path)[1].lower()
         content_type = mime_types.get(ext, "application/octet-stream")
