@@ -308,9 +308,13 @@
         });
       });
 
-      // Preserve existing station positions where possible
+      // Preserve existing station positions where possible (finite only)
       const oldPosMap = new Map();
-      state.devices.forEach(d => oldPosMap.set(d.name, { x: d.x, y: d.y, pinned: d.pinned }));
+      state.devices.forEach(d => {
+        if (Number.isFinite(d.x) && Number.isFinite(d.y)) {
+          oldPosMap.set(d.name, { x: d.x, y: d.y, pinned: d.pinned });
+        }
+      });
 
       const rect = el.canvasArea.getBoundingClientRect();
       const width = rect.width || 800;
@@ -319,13 +323,15 @@
       state.devices = (data.devices || []).map((d, i) => {
         const prev = oldPosMap.get(d.name);
         const angle = (i / Math.max(1, data.devices.length)) * 2 * Math.PI;
-        const radius = Math.min(width, height) * 0.35;
+        const radius = Math.min(width, height) * 0.32;
+        const initX = prev ? prev.x : width / 2 + radius * Math.cos(angle) + (Math.random() - 0.5) * 20;
+        const initY = prev ? prev.y : height / 2 + radius * Math.sin(angle) + (Math.random() - 0.5) * 20;
         return {
           id: d.id,
           name: d.name,
           degree: d.degree,
-          x: prev ? prev.x : width / 2 + radius * Math.cos(angle) + (Math.random() - 0.5) * 20,
-          y: prev ? prev.y : height / 2 + radius * Math.sin(angle) + (Math.random() - 0.5) * 20,
+          x: Number.isFinite(initX) ? initX : width / 2,
+          y: Number.isFinite(initY) ? initY : height / 2,
           vx: 0,
           vy: 0,
           pinned: prev ? prev.pinned : false,
@@ -345,7 +351,6 @@
       if (state.devices.length > 0) {
         el.emptyState.style.display = 'none';
         startSimulation();
-        setTimeout(autoFitGraph, 300);
       } else {
         el.emptyState.style.display = 'block';
         render();
@@ -446,7 +451,7 @@
   }
 
   function simulationTick() {
-    if (!state.simulationRunning || state.alpha < 0.005) {
+    if (!state.simulationRunning || state.alpha < 0.008) {
       state.simulationRunning = false;
       render();
       return;
@@ -465,25 +470,26 @@
     const centerX = width / 2;
     const centerY = height / 2;
 
-    const kRepel = n > 50 ? 1400 : (n <= 6 ? 4500 : 3200);
+    const kRepel = n > 50 ? 1200 : (n <= 6 ? 4000 : 2800);
     const kSpring = 0.045;
     const linkLength = n > 50 ? 60 : (n <= 6 ? 140 : 110);
     const centerGravity = 0.02;
 
-    // 1. Node Repulsion
+    // 1. Node Repulsion (Soft-core clamping prevents force explosion)
     for (let i = 0; i < n; i++) {
       const u = state.devices[i];
       for (let j = i + 1; j < n; j++) {
         const v = state.devices[j];
         let dx = v.x - u.x;
         let dy = v.y - u.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
+        let dist = Math.hypot(dx, dy);
         if (dist < 1) {
-          dx = (Math.random() - 0.5) * 2;
-          dy = (Math.random() - 0.5) * 2;
-          dist = Math.sqrt(dx * dx + dy * dy);
+          dx = (Math.random() - 0.5) * 4 || 1;
+          dy = (Math.random() - 0.5) * 4;
+          dist = Math.hypot(dx, dy);
         }
-        const force = (kRepel / (dist * dist)) * state.alpha;
+        const effectiveDist = Math.max(30, dist);
+        const force = Math.min(30, (kRepel / (effectiveDist * effectiveDist)) * state.alpha);
         const fx = (dx / dist) * force;
         const fy = (dy / dist) * force;
 
@@ -492,7 +498,7 @@
       }
     }
 
-    // 2. Edge Spring Attraction
+    // 2. Edge Spring Attraction (Corrected hooke attraction pulling nodes together)
     const nodeMap = new Map();
     state.devices.forEach(d => nodeMap.set(d.name, d));
 
@@ -503,17 +509,21 @@
 
       const dx = v.x - u.x;
       const dy = v.y - u.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const force = (dist - linkLength) * kSpring * state.alpha;
+      const dist = Math.hypot(dx, dy) || 1;
+      const force = Math.max(-20, Math.min(20, (dist - linkLength) * kSpring * state.alpha));
       const fx = (dx / dist) * force;
       const fy = (dy / dist) * force;
 
-      if (!u.pinned) { u.vx -= fx; u.vy -= fy; }
-      if (!v.pinned) { v.vx += fx; v.vy += fy; }
+      // Stretched edge pulls u towards v (+fx) and v towards u (-fx)
+      if (!u.pinned) { u.vx += fx; u.vy += fy; }
+      if (!v.pinned) { v.vx -= fx; v.vy -= fy; }
     }
 
-    // 3. Centering force & update positions
+    // 3. Centering force, velocity clamping & coordinate verification
     const damping = 0.85;
+    const maxSpeed = 12;
+    let maxSpeedObserved = 0;
+
     for (let i = 0; i < n; i++) {
       const d = state.devices[i];
       if (!d.pinned) {
@@ -521,13 +531,36 @@
         d.vy += (centerY - d.y) * centerGravity * state.alpha;
         d.vx *= damping;
         d.vy *= damping;
+
+        const speed = Math.hypot(d.vx, d.vy);
+        if (speed > maxSpeed) {
+          d.vx = (d.vx / speed) * maxSpeed;
+          d.vy = (d.vy / speed) * maxSpeed;
+        }
+
         d.x += d.vx;
         d.y += d.vy;
+        maxSpeedObserved = Math.max(maxSpeedObserved, speed);
+      }
+
+      if (!Number.isFinite(d.x) || !Number.isFinite(d.y)) {
+        d.x = centerX + (Math.random() - 0.5) * 80;
+        d.y = centerY + (Math.random() - 0.5) * 80;
+        d.vx = 0;
+        d.vy = 0;
       }
     }
 
-    state.alpha *= 0.985;
+    state.alpha *= 0.94; // Smooth, rapid decay
     render();
+
+    // Settle early when system energy is low
+    if (maxSpeedObserved < 0.25 || state.alpha < 0.008) {
+      state.simulationRunning = false;
+      autoFitGraph();
+      return;
+    }
+
     requestAnimationFrame(simulationTick);
   }
 
@@ -561,300 +594,310 @@
     const rect = el.canvasArea.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    if (canvas.width === 0 || canvas.height === 0) return;
+    if (canvas.width === 0 || canvas.height === 0 || rect.width === 0 || rect.height === 0) return;
+
+    // Sanitize zoom and pan to prevent degenerate canvas matrices
+    if (!Number.isFinite(state.zoom) || state.zoom <= 0) state.zoom = 1.0;
+    if (!Number.isFinite(state.panX)) state.panX = 0;
+    if (!Number.isFinite(state.panY)) state.panY = 0;
 
     ctx.save();
-    ctx.scale(dpr, dpr);
+    try {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
 
-    const isDark = state.theme === 'dark';
-    const bgSheet = isDark ? '#16191E' : '#F1F2EE';
-    const inkColor = isDark ? '#ECEFF4' : '#14181F';
-    const inkMuted = isDark ? '#959CA8' : '#5F6774';
-    const ruleHairline = isDark ? '#2D333D' : '#C8CBC4';
-    const ruleHalo = isDark ? '#16191E' : '#F1F2EE';
-    const gridDotColor = isDark ? '#252A32' : '#CBD0C5';
-    const accentDanger = isDark ? '#E24A42' : '#D6342C';
-    const accentFocus = isDark ? '#5A99E6' : '#1F5FBF';
+      const isDark = state.theme === 'dark';
+      const bgSheet = isDark ? '#16191E' : '#F1F2EE';
+      const inkColor = isDark ? '#ECEFF4' : '#14181F';
+      const inkMuted = isDark ? '#959CA8' : '#5F6774';
+      const ruleHairline = isDark ? '#2D333D' : '#C8CBC4';
+      const ruleHalo = isDark ? '#16191E' : '#F1F2EE';
+      const gridDotColor = isDark ? '#252A32' : '#CBD0C5';
+      const accentDanger = isDark ? '#E24A42' : '#D6342C';
+      const accentFocus = isDark ? '#5A99E6' : '#1F5FBF';
 
-    // 1. Draw Drafting Sheet Background
-    ctx.fillStyle = bgSheet;
-    ctx.fillRect(0, 0, rect.width, rect.height);
+      // 1. Draw Drafting Sheet Background
+      ctx.fillStyle = bgSheet;
+      ctx.fillRect(0, 0, rect.width, rect.height);
 
-    // 2. Draw Subtle Dot Grid
-    const gridSize = 24 * state.zoom;
-    const offsetX = (state.panX % gridSize + gridSize) % gridSize;
-    const offsetY = (state.panY % gridSize + gridSize) % gridSize;
+      // 2. Draw Subtle Dot Grid
+      const gridSize = 24 * state.zoom;
+      const offsetX = (state.panX % gridSize + gridSize) % gridSize;
+      const offsetY = (state.panY % gridSize + gridSize) % gridSize;
 
-    ctx.fillStyle = gridDotColor;
-    for (let x = offsetX; x < rect.width; x += gridSize) {
-      for (let y = offsetY; y < rect.height; y += gridSize) {
-        ctx.beginPath();
-        ctx.arc(x, y, 1, 0, 2 * Math.PI);
-        ctx.fill();
+      ctx.fillStyle = gridDotColor;
+      for (let x = offsetX; x < rect.width; x += gridSize) {
+        for (let y = offsetY; y < rect.height; y += gridSize) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1, 0, 2 * Math.PI);
+          ctx.fill();
+        }
       }
-    }
 
-    // 3. Apply World Transform (Pan & Zoom)
-    ctx.save();
-    ctx.translate(state.panX, state.panY);
-    ctx.scale(state.zoom, state.zoom);
-
-    const nodeMap = new Map();
-    state.devices.forEach(d => nodeMap.set(d.name, d));
-
-    const isRouteActive = state.shortestPathResult && state.shortestPathResult.reachable;
-    const routeEdgeSet = new Set();
-    if (isRouteActive) {
-      (state.shortestPathResult.edges || []).forEach(e => {
-        routeEdgeSet.add(`${e.a}:${e.b}`);
-        routeEdgeSet.add(`${e.b}:${e.a}`);
-      });
-    }
-
-    // --- Draw Lines (Edges) ---
-    state.links.forEach(l => {
-      const u = nodeMap.get(l.a);
-      const v = nodeMap.get(l.b);
-      if (!u || !v) return;
-
-      const isRoute = routeEdgeSet.has(`${l.a}:${l.b}`);
-      const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'link' &&
-        ((state.simulatedFailure.a === l.a && state.simulatedFailure.b === l.b) ||
-         (state.simulatedFailure.a === l.b && state.simulatedFailure.b === l.a));
-      const isBridge = state.bridges.some(b => (b.a === l.a && b.b === l.b) || (b.a === l.b && b.b === l.a));
-
+      // 3. Apply World Transform (Pan & Zoom)
       ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(u.x, u.y);
-      ctx.lineTo(v.x, v.y);
-      ctx.lineCap = 'round';
+      ctx.translate(state.panX, state.panY);
+      ctx.scale(state.zoom, state.zoom);
 
-      if (isFailed) {
-        ctx.strokeStyle = accentDanger;
-        ctx.lineWidth = 6;
-        ctx.setLineDash([6, 6]);
-        ctx.globalAlpha = 0.35;
-      } else if (isRoute) {
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = 8;
-        ctx.globalAlpha = 1.0;
-      } else if (isRouteActive) {
-        // Dim non-participating lines
-        ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
-        ctx.lineWidth = 6;
-        ctx.globalAlpha = 0.22;
-      } else if (isBridge) {
-        ctx.strokeStyle = accentDanger;
-        ctx.lineWidth = 7;
-        ctx.globalAlpha = 1.0;
-      } else {
-        ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
-        ctx.lineWidth = 6;
-        ctx.globalAlpha = 1.0;
+      const nodeMap = new Map();
+      state.devices.forEach(d => nodeMap.set(d.name, d));
+
+      const isRouteActive = state.shortestPathResult && state.shortestPathResult.reachable;
+      const routeEdgeSet = new Set();
+      if (isRouteActive) {
+        (state.shortestPathResult.edges || []).forEach(e => {
+          routeEdgeSet.add(`${e.a}:${e.b}`);
+          routeEdgeSet.add(`${e.b}:${e.a}`);
+        });
       }
-      ctx.stroke();
-      ctx.restore();
 
-      // Draw Single Track Bridge Crossbar Tick
-      const midX = (u.x + v.x) / 2;
-      const midY = (u.y + v.y) / 2;
-      const dx = v.x - u.x;
-      const dy = v.y - u.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const nx = -dy / len;
-      const ny = dx / len;
+      // --- Draw Lines (Edges) ---
+      state.links.forEach(l => {
+        const u = nodeMap.get(l.a);
+        const v = nodeMap.get(l.b);
+        if (!u || !v || !Number.isFinite(u.x) || !Number.isFinite(u.y) || !Number.isFinite(v.x) || !Number.isFinite(v.y)) return;
 
-      if (isBridge && !isFailed) {
+        const isRoute = routeEdgeSet.has(`${l.a}:${l.b}`);
+        const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'link' &&
+          ((state.simulatedFailure.a === l.a && state.simulatedFailure.b === l.b) ||
+           (state.simulatedFailure.a === l.b && state.simulatedFailure.b === l.a));
+        const isBridge = state.bridges.some(b => (b.a === l.a && b.b === l.b) || (b.a === l.b && b.b === l.a));
+
         ctx.save();
         ctx.beginPath();
-        const tickLen = 13;
-        ctx.moveTo(midX - nx * tickLen, midY - ny * tickLen);
-        ctx.lineTo(midX + nx * tickLen, midY + ny * tickLen);
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = 3.5;
+        ctx.moveTo(u.x, u.y);
+        ctx.lineTo(v.x, v.y);
         ctx.lineCap = 'round';
+
+        if (isFailed) {
+          ctx.strokeStyle = accentDanger;
+          ctx.lineWidth = 6;
+          ctx.setLineDash([6, 6]);
+          ctx.globalAlpha = 0.35;
+        } else if (isRoute) {
+          ctx.strokeStyle = inkColor;
+          ctx.lineWidth = 8;
+          ctx.globalAlpha = 1.0;
+        } else if (isRouteActive) {
+          // Dim non-participating lines
+          ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
+          ctx.lineWidth = 6;
+          ctx.globalAlpha = 0.22;
+        } else if (isBridge) {
+          ctx.strokeStyle = accentDanger;
+          ctx.lineWidth = 7;
+          ctx.globalAlpha = 1.0;
+        } else {
+          ctx.strokeStyle = state.componentColorMap[l.a] || getComponentColor(0);
+          ctx.lineWidth = 6;
+          ctx.globalAlpha = 1.0;
+        }
         ctx.stroke();
         ctx.restore();
-      }
 
-      // Draw Tabular Cost Numeral with Paper Halo
-      const costX = midX - nx * 11;
-      const costY = midY - ny * 11;
-      ctx.save();
-      ctx.font = '600 12px Archivo, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
+        // Draw Single Track Bridge Crossbar Tick
+        const midX = (u.x + v.x) / 2;
+        const midY = (u.y + v.y) / 2;
+        const dx = v.x - u.x;
+        const dy = v.y - u.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
 
-      // Halo
-      ctx.strokeStyle = ruleHalo;
-      ctx.lineWidth = 4;
-      ctx.strokeText(String(l.cost), costX, costY);
+        if (isBridge && !isFailed) {
+          ctx.save();
+          ctx.beginPath();
+          const tickLen = 13;
+          ctx.moveTo(midX - nx * tickLen, midY - ny * tickLen);
+          ctx.lineTo(midX + nx * tickLen, midY + ny * tickLen);
+          ctx.strokeStyle = inkColor;
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          ctx.restore();
+        }
 
-      // Ink Text
-      ctx.fillStyle = inkColor;
-      ctx.fillText(String(l.cost), costX, costY);
-      ctx.restore();
-    });
-
-    // --- Draw Stations (Nodes) ---
-    const routeNodeSet = new Set(isRouteActive ? (state.shortestPathResult.path || []) : []);
-
-    state.devices.forEach(d => {
-      const isSelected = state.selectedElement && state.selectedElement.type === 'node' && state.selectedElement.data.name === d.name;
-      const isCritical = state.articulationPoints.includes(d.name);
-      const isIsolated = d.degree === 0;
-      const isVisited = (state.traversalActive && state.traversalSteps.slice(0, state.traversalStepIndex + 1).some(s => s.visit === d.name)) ||
-                        routeNodeSet.has(d.name);
-      const isCurrent = state.currentVisitedNode === d.name;
-      const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'device' && state.simulatedFailure.name === d.name;
-
-      // 1. Interchange Outer Ring (Cut Vertex)
-      if (isCritical) {
+        // Draw Tabular Cost Numeral with Paper Halo
+        const costX = midX - nx * 11;
+        const costY = midY - ny * 11;
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(d.x, d.y, 24, 0, 2 * Math.PI);
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
+        ctx.font = '600 12px Archivo, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+
+        // Halo
+        ctx.strokeStyle = ruleHalo;
+        ctx.lineWidth = 4;
+        ctx.strokeText(String(l.cost), costX, costY);
+
+        // Ink Text
+        ctx.fillStyle = inkColor;
+        ctx.fillText(String(l.cost), costX, costY);
         ctx.restore();
-      }
+      });
 
-      // 2. Traversal Active Beacon Ring
-      if (isCurrent) {
+      // --- Draw Stations (Nodes) ---
+      const routeNodeSet = new Set(isRouteActive ? (state.shortestPathResult.path || []) : []);
+
+      state.devices.forEach(d => {
+        if (!Number.isFinite(d.x) || !Number.isFinite(d.y)) return;
+        const isSelected = state.selectedElement && state.selectedElement.type === 'node' && state.selectedElement.data.name === d.name;
+        const isCritical = state.articulationPoints.includes(d.name);
+        const isIsolated = d.degree === 0;
+        const isVisited = (state.traversalActive && state.traversalSteps.slice(0, state.traversalStepIndex + 1).some(s => s.visit === d.name)) ||
+                          routeNodeSet.has(d.name);
+        const isCurrent = state.currentVisitedNode === d.name;
+        const isFailed = state.simulatedFailure && state.simulatedFailure.type === 'device' && state.simulatedFailure.name === d.name;
+
+        // 1. Interchange Outer Ring (Cut Vertex)
+        if (isCritical) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, 24, 0, 2 * Math.PI);
+          ctx.strokeStyle = inkColor;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 2. Traversal Active Beacon Ring
+        if (isCurrent) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, 22, 0, 2 * Math.PI);
+          ctx.strokeStyle = accentFocus;
+          ctx.lineWidth = 3;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 3. Station Disc (White circle with ink outline, or solid ink if visited)
         ctx.save();
         ctx.beginPath();
-        ctx.arc(d.x, d.y, 22, 0, 2 * Math.PI);
+        ctx.arc(d.x, d.y, 16, 0, 2 * Math.PI);
+
+        if (isFailed) {
+          ctx.fillStyle = bgSheet;
+          ctx.strokeStyle = accentDanger;
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+        } else if (isVisited) {
+          ctx.fillStyle = inkColor;
+          ctx.strokeStyle = inkColor;
+          ctx.lineWidth = 3;
+          ctx.fill();
+          ctx.stroke();
+        } else if (isIsolated) {
+          ctx.fillStyle = 'transparent';
+          ctx.strokeStyle = inkMuted;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([3, 3]);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.strokeStyle = isSelected ? accentFocus : inkColor;
+          ctx.lineWidth = 3;
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 4. Closed Station Cross Mark
+        if (isFailed) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(d.x - 9, d.y - 9);
+          ctx.lineTo(d.x + 9, d.y + 9);
+          ctx.moveTo(d.x - 9, d.y + 9);
+          ctx.lineTo(d.x + 9, d.y - 9);
+          ctx.strokeStyle = accentDanger;
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 5. In-Queue Position Badge
+        if (state.queuePositions[d.name] && !isVisited) {
+          const badgeX = d.x + 13;
+          const badgeY = d.y - 13;
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(badgeX, badgeY, 7.5, 0, 2 * Math.PI);
+          ctx.fillStyle = bgSheet;
+          ctx.strokeStyle = inkColor;
+          ctx.lineWidth = 1.5;
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.font = '700 10px Archivo, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = inkColor;
+          ctx.fillText(String(state.queuePositions[d.name]), badgeX, badgeY);
+          ctx.restore();
+        }
+
+        // 6. Cumulative Route Distance Badge
+        if (isRouteActive && state.pathCumulativeCosts[d.name] !== undefined) {
+          const badgeW = 28;
+          const badgeH = 15;
+          const bx = d.x - badgeW / 2;
+          const by = d.y + 18;
+
+          ctx.save();
+          ctx.fillStyle = inkColor;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(bx, by, badgeW, badgeH, 3) : ctx.rect(bx, by, badgeW, badgeH);
+          ctx.fill();
+
+          ctx.font = '700 11px Archivo, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = isDark ? '#14181F' : '#FFFFFF';
+          ctx.fillText(String(state.pathCumulativeCosts[d.name]), d.x, by + badgeH / 2);
+          ctx.restore();
+        }
+
+        // 7. Station Label with Paper Halo
+        ctx.save();
+        ctx.font = '500 14px Archivo, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+
+        const labelX = d.x + 21;
+        const labelY = d.y + 5;
+
+        // Halo
+        ctx.strokeStyle = ruleHalo;
+        ctx.lineWidth = 4;
+        ctx.strokeText(d.name, labelX, labelY);
+
+        // Ink Text
+        ctx.fillStyle = isIsolated ? inkMuted : inkColor;
+        ctx.fillText(d.name, labelX, labelY);
+        ctx.restore();
+      });
+
+      // --- Drag-to-Link Preview Line ---
+      if (state.dragLinkSource && state.dragLinkTargetPos) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(state.dragLinkSource.x, state.dragLinkSource.y);
+        ctx.lineTo(state.dragLinkTargetPos.x, state.dragLinkTargetPos.y);
         ctx.strokeStyle = accentFocus;
         ctx.lineWidth = 3;
+        ctx.setLineDash([4, 4]);
         ctx.stroke();
         ctx.restore();
       }
 
-      // 3. Station Disc (White circle with ink outline, or solid ink if visited)
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, 16, 0, 2 * Math.PI);
-
-      if (isFailed) {
-        ctx.fillStyle = bgSheet;
-        ctx.strokeStyle = accentDanger;
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-      } else if (isVisited) {
-        ctx.fillStyle = inkColor;
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = 3;
-        ctx.fill();
-        ctx.stroke();
-      } else if (isIsolated) {
-        ctx.fillStyle = 'transparent';
-        ctx.strokeStyle = inkMuted;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([3, 3]);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.strokeStyle = isSelected ? accentFocus : inkColor;
-        ctx.lineWidth = 3;
-        ctx.fill();
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // 4. Closed Station Cross Mark
-      if (isFailed) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(d.x - 9, d.y - 9);
-        ctx.lineTo(d.x + 9, d.y + 9);
-        ctx.moveTo(d.x - 9, d.y + 9);
-        ctx.lineTo(d.x + 9, d.y - 9);
-        ctx.strokeStyle = accentDanger;
-        ctx.lineWidth = 2.5;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // 5. In-Queue Position Badge
-      if (state.queuePositions[d.name] && !isVisited) {
-        const badgeX = d.x + 13;
-        const badgeY = d.y - 13;
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(badgeX, badgeY, 7.5, 0, 2 * Math.PI);
-        ctx.fillStyle = bgSheet;
-        ctx.strokeStyle = inkColor;
-        ctx.lineWidth = 1.5;
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = '700 10px Archivo, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = inkColor;
-        ctx.fillText(String(state.queuePositions[d.name]), badgeX, badgeY);
-        ctx.restore();
-      }
-
-      // 6. Cumulative Route Distance Badge
-      if (isRouteActive && state.pathCumulativeCosts[d.name] !== undefined) {
-        const badgeW = 28;
-        const badgeH = 15;
-        const bx = d.x - badgeW / 2;
-        const by = d.y + 18;
-
-        ctx.save();
-        ctx.fillStyle = inkColor;
-        ctx.beginPath();
-        ctx.roundRect ? ctx.roundRect(bx, by, badgeW, badgeH, 3) : ctx.rect(bx, by, badgeW, badgeH);
-        ctx.fill();
-
-        ctx.font = '700 11px Archivo, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = isDark ? '#14181F' : '#FFFFFF';
-        ctx.fillText(String(state.pathCumulativeCosts[d.name]), d.x, by + badgeH / 2);
-        ctx.restore();
-      }
-
-      // 7. Station Label with Paper Halo
-      ctx.save();
-      ctx.font = '500 14px Archivo, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.lineJoin = 'round';
-
-      const labelX = d.x + 21;
-      const labelY = d.y + 5;
-
-      // Halo
-      ctx.strokeStyle = ruleHalo;
-      ctx.lineWidth = 4;
-      ctx.strokeText(d.name, labelX, labelY);
-
-      // Ink Text
-      ctx.fillStyle = isIsolated ? inkMuted : inkColor;
-      ctx.fillText(d.name, labelX, labelY);
-      ctx.restore();
-    });
-
-    // --- Drag-to-Link Preview Line ---
-    if (state.dragLinkSource && state.dragLinkTargetPos) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(state.dragLinkSource.x, state.dragLinkSource.y);
-      ctx.lineTo(state.dragLinkTargetPos.x, state.dragLinkTargetPos.y);
-      ctx.strokeStyle = accentFocus;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.restore();
+      ctx.restore(); // Restore world transform
+    } finally {
+      ctx.restore(); // Restore root transform
     }
-
-    ctx.restore(); // Restore world transform
-    ctx.restore(); // Restore DPI transform
 
     // Sync floating inspector anchor if active
     if (state.selectedElement) {
@@ -867,20 +910,30 @@
     if (state.devices.length === 0) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     state.devices.forEach(d => {
-      if (d.x < minX) minX = d.x;
-      if (d.x > maxX) maxX = d.x;
-      if (d.y < minY) minY = d.y;
-      if (d.y > maxY) maxY = d.y;
+      if (Number.isFinite(d.x) && Number.isFinite(d.y)) {
+        if (d.x < minX) minX = d.x;
+        if (d.x > maxX) maxX = d.x;
+        if (d.y < minY) minY = d.y;
+        if (d.y > maxY) maxY = d.y;
+      }
     });
 
-    const pad = 100;
-    const bboxW = Math.max(140, (maxX - minX) + pad * 2);
-    const bboxH = Math.max(140, (maxY - minY) + pad * 2);
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX) || minX > maxX) {
+      state.panX = 0;
+      state.panY = 0;
+      state.zoom = 1.0;
+      render();
+      return;
+    }
+
+    const pad = 90;
+    const bboxW = Math.max(120, (maxX - minX) + pad * 2);
+    const bboxH = Math.max(120, (maxY - minY) + pad * 2);
     const rect = el.canvasArea.getBoundingClientRect();
     const svgW = rect.width || 800;
     const svgH = rect.height || 600;
 
-    const scale = Math.min(1.5, Math.max(0.65, Math.min(svgW / bboxW, svgH / bboxH)));
+    const scale = Math.min(1.6, Math.max(0.3, Math.min(svgW / bboxW, svgH / bboxH)));
     state.zoom = scale;
     state.panX = svgW / 2 - ((minX + maxX) / 2) * scale;
     state.panY = svgH / 2 - ((minY + maxY) / 2) * scale;
@@ -949,6 +1002,7 @@
         state.draggedNode = clickedNode;
         state.dragMoved = false;
         clickedNode.pinned = true;
+        state.simulationRunning = false; // Pause physics during manual drag
         return;
       }
 
