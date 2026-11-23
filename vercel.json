@@ -1,0 +1,7 @@
+﻿{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/capstone_Network_Connectivity_Analyzer/api/index.py" },
+    { "source": "/(.*)", "destination": "/capstone_Network_Connectivity_Analyzer/web/" }
+  ]
+}
