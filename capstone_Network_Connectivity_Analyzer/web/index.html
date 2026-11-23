@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Connectivity Analyzer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="18" cy="5" r="3"></circle>
+        <circle cx="6" cy="12" r="3"></circle>
+        <circle cx="18" cy="19" r="3"></circle>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+      </svg>
+      <h1>Network Connectivity Analyzer</h1>
+      <span class="badge">C Engine • Graph Core</span>
+    </div>
+
+    <div class="header-stats">
+      <div class="stat-item">
+        <span>Devices:</span>
+        <span class="stat-value" id="stat-devices">0</span>
+      </div>
+      <div class="stat-item">
+        <span>Links:</span>
+        <span class="stat-value" id="stat-links">0</span>
+      </div>
+      <div class="stat-item">
+        <span>Components:</span>
+        <span class="stat-value" id="stat-components">0</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-sm" id="btn-open-report" title="Generate plain-text report">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        Report
+      </button>
+
+      <button class="btn btn-sm" id="btn-theme-toggle" title="Toggle Light/Dark theme">
+        <span id="theme-icon">☀️</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="app-main">
+
+    <!-- Left Control Sidebar -->
+    <aside class="sidebar">
+
+      <!-- 1. Build Network -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-build">
+          <span>1. Build Network</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-build">
+          <!-- Add Device -->
+          <div class="form-group">
+            <label for="new-device-name">Add Device</label>
+            <div class="row-inputs">
+              <input type="text" id="new-device-name" placeholder="Device name (e.g. Router_A)" maxlength="31">
+              <button class="btn btn-primary btn-sm" id="btn-add-device">Add</button>
+            </div>
+          </div>
+
+          <!-- Add Link -->
+          <div class="form-group">
+            <label>Add or Update Link</label>
+            <div class="row-inputs">
+              <select id="link-node-a" aria-label="Device A"></select>
+              <select id="link-node-b" aria-label="Device B"></select>
+            </div>
+            <div class="row-inputs" style="margin-top: 4px;">
+              <input type="number" id="link-cost" placeholder="Cost" min="1" max="9999" value="1" aria-label="Link Cost">
+              <button class="btn btn-primary btn-sm" id="btn-add-link">Add Link</button>
+            </div>
+          </div>
+
+          <!-- Remove Item -->
+          <div class="form-group">
+            <label>Remove Item</label>
+            <div class="row-inputs">
+              <select id="remove-device-select" aria-label="Select device to remove"></select>
+              <button class="btn btn-danger btn-sm" id="btn-remove-device">Del Device</button>
+            </div>
+            <div class="row-inputs" style="margin-top: 4px;">
+              <select id="remove-link-select" aria-label="Select link to remove"></select>
+              <button class="btn btn-danger btn-sm" id="btn-remove-link">Del Link</button>
+            </div>
+          </div>
+
+          <!-- Load Sample -->
+          <div class="form-group">
+            <label for="sample-select">Load Topology Sample</label>
+            <div class="row-inputs">
+              <select id="sample-select">
+                <option value="sample_small.txt">Small Network (3 Bridges)</option>
+                <option value="sample_dijkstra.txt">Dijkstra Test (A-B-D Cost 5)</option>
+                <option value="sample_disconnected.txt">Disconnected (3 Comps, Iso F)</option>
+                <option value="sample_large.txt">Large Enterprise (120 Nodes)</option>
+              </select>
+              <button class="btn btn-sm" id="btn-load-sample">Load</button>
+            </div>
+          </div>
+
+          <!-- Network Operations -->
+          <div class="btn-group">
+            <button class="btn btn-sm" id="btn-open-import" title="Import network text">Import</button>
+            <button class="btn btn-sm" id="btn-export" title="Export network as .txt">Export</button>
+            <button class="btn btn-sm btn-danger" id="btn-clear-network" title="Remove all nodes and links">Clear All</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Traversal Visualiser -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-traversal">
+          <span>2. Traversal Visualiser</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-traversal">
+          <div class="form-group">
+            <label>Traversal Algorithm</label>
+            <div class="row-inputs">
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="radio" name="traversal-type" value="bfs" checked> BFS (Breadth-First)
+              </label>
+              <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="radio" name="traversal-type" value="dfs"> DFS (Depth-First)
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="traversal-start">Start Device</label>
+            <select id="traversal-start"></select>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-success btn-sm" id="btn-traversal-play">▶ Play</button>
+            <button class="btn btn-sm" id="btn-traversal-pause">⏸ Pause</button>
+            <button class="btn btn-sm" id="btn-traversal-step">⏭ Step</button>
+            <button class="btn btn-sm" id="btn-traversal-reset">↺ Reset</button>
+          </div>
+
+          <div class="form-group">
+            <label for="traversal-speed">Animation Speed: <span id="speed-label">600ms</span></label>
+            <input type="range" id="traversal-speed" min="150" max="1500" step="50" value="600">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Connectivity -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-connectivity">
+          <span>3. Connectivity Verification</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-connectivity">
+          <div class="form-group">
+            <label>Verify Reachability Between</label>
+            <div class="row-inputs">
+              <select id="connect-x" aria-label="Device X"></select>
+              <select id="connect-y" aria-label="Device Y"></select>
+            </div>
+          </div>
+
+          <button class="btn btn-primary btn-sm" id="btn-check-connect">Check Reachability (BFS, DFS, UF)</button>
+          <button class="btn btn-sm" id="btn-color-components">Colour by Component</button>
+
+          <div id="connectivity-results-box" style="display:none; margin-top:4px;"></div>
+        </div>
+      </div>
+
+      <!-- 4. Shortest Path -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-shortest-path">
+          <span>4. Shortest Path (Dijkstra)</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-shortest-path">
+          <div class="form-group">
+            <label>Route Endpoints</label>
+            <div class="row-inputs">
+              <select id="path-src" aria-label="Source device"></select>
+              <select id="path-dst" aria-label="Destination device"></select>
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-primary btn-sm" id="btn-find-path">Find Shortest Path</button>
+            <button class="btn btn-success btn-sm" id="btn-animate-path" title="Animate Dijkstra node settling">▶ Animate</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Fault Detection -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-faults">
+          <span>5. Fault Detection</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-faults">
+          <p style="font-size:0.8rem; color:var(--text-secondary);">
+            Identify critical bridges and articulation points (cut vertices) that would split the network upon failure.
+          </p>
+          <button class="btn btn-danger btn-sm" id="btn-find-faults">Find Weak Points</button>
+        </div>
+      </div>
+
+      <!-- 6. Failure Simulation -->
+      <div class="sidebar-section">
+        <div class="section-header" data-target="section-simulation">
+          <span>6. Failure Simulation</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+        <div class="section-body" id="section-simulation">
+          <div class="form-group">
+            <label>Select Target to Fail</label>
+            <select id="sim-target-type">
+              <option value="link">Simulate Link Failure</option>
+              <option value="device">Simulate Device Failure</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="sim-link-group">
+            <select id="sim-link-select" aria-label="Select link to fail"></select>
+          </div>
+
+          <div class="form-group" id="sim-device-group" style="display:none;">
+            <select id="sim-device-select" aria-label="Select device to fail"></select>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-danger btn-sm" id="btn-simulate-failure">Simulate Failure</button>
+            <button class="btn btn-sm" id="btn-restore-network">Restore</button>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Center Canvas Area -->
+    <div class="canvas-container">
+
+      <!-- Canvas Toolbar -->
+      <div class="canvas-toolbar">
+        <button class="btn btn-sm" id="btn-relayout" title="Restart force-directed physics layout">⟳ Re-layout</button>
+        <button class="btn btn-sm" id="btn-fit-screen" title="Fit all nodes to view">⊡ Fit to Screen</button>
+        <button class="btn btn-sm" id="btn-zoom-in" title="Zoom in">+</button>
+        <button class="btn btn-sm" id="btn-zoom-out" title="Zoom out">-</button>
+        <button class="btn btn-sm" id="btn-reset-view" title="Reset zoom and center">100%</button>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div class="loading-overlay hidden" id="loading-overlay">
+        <div class="spinner"></div>
+        <span>Processing in C Core...</span>
+      </div>
+
+      <!-- Empty State Card -->
+      <div class="empty-state" id="empty-state" style="display:none;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <h3 style="margin-top:10px;">Empty Topology</h3>
+        <p>No devices currently loaded. Choose a sample from the sidebar, use "Add Device", or double-click anywhere on the canvas to place a new device.</p>
+        <button class="btn btn-primary btn-sm" id="btn-empty-load-sample">Load Small Sample</button>
+      </div>
+
+      <!-- SVG Canvas -->
+      <svg class="graph-canvas" id="graph-svg">
+        <defs>
+          <filter id="glow-neon" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g id="canvas-transform-group">
+          <!-- Edges Container -->
+          <g id="svg-edges-group"></g>
+          <!-- Dragging Edge Preview -->
+          <line id="drag-link-preview" class="drag-link-preview" x1="0" y1="0" x2="0" y2="0" style="display:none;"></line>
+          <!-- Nodes Container -->
+          <g id="svg-nodes-group"></g>
+        </g>
+      </svg>
+
+      <!-- Color Legend Overlay -->
+      <div class="canvas-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-fill);"></div><span>Normal</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-visited);"></div><span>Visited</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-current);"></div><span>Current</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-in-queue);"></div><span>In Queue/Stack</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-path);"></div><span>Shortest Path</span></div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--edge-bridge);"></div><span>Bridge (Red)</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-critical); border:2px dashed #ffffff;"></div><span>Cut Vertex (Orange)</span></div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-isolated);"></div><span>Isolated</span></div>
+      </div>
+
+      <!-- Live Queue / Stack Below Canvas -->
+      <div class="live-structure-panel" id="live-structure-panel">
+        <span class="structure-label" id="structure-type-label">Queue / Stack:</span>
+        <div class="structure-items" id="structure-items-container">
+          <span style="font-size:0.8rem; color:var(--text-muted); font-style:italic;">Idle</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right Information & Log Panel -->
+    <aside class="right-panel">
+      <div class="panel-tabs">
+        <div class="panel-tab active" id="tab-results">Results & State</div>
+        <div class="panel-tab" id="tab-logs">Algorithm Log</div>
+      </div>
+
+      <!-- Panel: Results -->
+      <div class="panel-content" id="content-results">
+        <!-- Selected Element Inspector -->
+        <div class="result-card" id="card-selection">
+          <div class="result-card-title">
+            <span>Inspector</span>
+            <span class="badge" id="inspect-type">None</span>
+          </div>
+          <div id="inspect-details">
+            <span style="font-size:0.82rem; color:var(--text-secondary);">Click any node or link on the canvas to inspect its properties.</span>
+          </div>
+        </div>
+
+        <!-- Algorithm Results Display -->
+        <div class="result-card" id="card-algo-results">
+          <div class="result-card-title">
+            <span id="algo-title">Analysis Results</span>
+            <span class="status-badge success" id="algo-status-badge" style="display:none;">Active</span>
+          </div>
+          <div id="algo-details-body">
+            <span style="font-size:0.82rem; color:var(--text-secondary);">Run a traversal, shortest path, or fault check from the sidebar to view detailed analytics.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel: Event Logs -->
+      <div class="panel-content hidden" id="content-logs">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-size:0.8rem; color:var(--text-secondary); font-weight:600;">EXECUTION LOG</span>
+          <button class="btn btn-sm" id="btn-clear-logs" style="padding:2px 6px; font-size:0.75rem;">Clear</button>
+        </div>
+        <div class="log-stream" id="log-stream"></div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- Report Modal -->
+  <div class="modal-overlay hidden" id="modal-report">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Network Analysis Report</h3>
+        <button class="btn btn-sm" id="btn-close-report">✕</button>
+      </div>
+      <pre class="modal-body" id="report-modal-content">Loading report...</pre>
+      <div class="modal-footer">
+        <button class="btn btn-sm" id="btn-copy-report">Copy to Clipboard</button>
+        <button class="btn btn-primary btn-sm" id="btn-download-report">Download (.txt)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Modal -->
+  <div class="modal-overlay hidden" id="modal-import">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Import Network Topology</h3>
+        <button class="btn btn-sm" id="btn-close-import">✕</button>
+      </div>
+      <div style="padding: 16px 20px;">
+        <label for="import-textarea" style="margin-bottom:6px; display:block;">Paste Network Text (DEVICE / LINK format):</label>
+        <textarea id="import-textarea" rows="12" style="font-family:var(--font-mono); font-size:0.85rem;" placeholder="DEVICE Router1&#10;DEVICE Router2&#10;LINK Router1 Router2 5"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm" id="btn-cancel-import">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="btn-submit-import">Import & Replace</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notifications Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Application JS -->
+  <script src="app.js"></script>
+</body>
+</html>

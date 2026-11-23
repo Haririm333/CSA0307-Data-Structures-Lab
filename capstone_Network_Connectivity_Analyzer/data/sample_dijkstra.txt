@@ -1,0 +1,10 @@
+# Dijkstra Benchmark Sample
+# Shortest path A to D is A -> B -> D with cost 2 + 3 = 5
+DEVICE A
+DEVICE B
+DEVICE C
+DEVICE D
+LINK A B 2
+LINK B D 3
+LINK A C 6
+LINK C D 1

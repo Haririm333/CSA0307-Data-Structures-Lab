@@ -1,0 +1,9 @@
+# Small Network Sample
+# Has exactly 3 bridges: A-B, B-C, C-D
+DEVICE A
+DEVICE B
+DEVICE C
+DEVICE D
+LINK A B 2
+LINK B C 3
+LINK C D 4

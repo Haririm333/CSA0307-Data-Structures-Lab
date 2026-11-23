@@ -1,0 +1,10 @@
+# Disconnected Network Sample
+DEVICE A
+DEVICE B
+DEVICE C
+DEVICE D
+DEVICE E
+DEVICE F
+LINK A B 2
+LINK B C 3
+LINK D E 4
